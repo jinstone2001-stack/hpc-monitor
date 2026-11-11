@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
+# User logs and exported reports are intentionally not versioned.
+*.tsv
+*.log
+HPC_logs*.json
+HPC_*.csv
+HPC_*.png
+qa-output/

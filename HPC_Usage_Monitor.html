@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="탭 구분 HPC 로그 6종을 로컬에서 분석하는 사용량 모니터">
+<meta name="color-scheme" content="light dark">
+<title>HPC 사용량 모니터</title>
+<style>:root{--bg:#f4f6f8;--panel:#fff;--panel-soft:#f8fafb;--ink:#172a3a;--muted:#6c7c89;--line:#e3e9ee;--accent:#087f8c;--accent-soft:#e6f3f3;--nav:#112b3c;--nav-muted:#a0b4c1;--warn:#9e651b;--warn-bg:#fff6e8;--error:#ba4a4a;--shadow:0 8px 28px #102b3c09;--chart-blue:#5586bb;--chart-orange:#d8a154;--focus:#087f8c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Arial,sans-serif;font-size:14px;line-height:1.55;font-variant-numeric:tabular-nums}button,input,select,summary{font:inherit}button,summary{cursor:pointer}button{color:inherit}button:disabled{cursor:default;opacity:.45}button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--focus);outline-offset:3px}button{border:0;background:none}input,select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;min-height:36px;padding:6px 9px;max-width:100%}input[type=checkbox]{min-height:auto;accent-color:var(--accent)}[hidden]{display:none!important}.sidebar{width:210px;position:fixed;inset:0 auto 0 0;background:var(--nav);color:white;padding:29px 17px;display:flex;flex-direction:column;z-index:20}.brand{display:flex;gap:10px;align-items:center;font-weight:700;font-size:18px;letter-spacing:-.6px;padding:0 8px 37px}.brand svg{width:35px;height:35px;color:#67d0cf;flex-shrink:0}.brand small{font-size:9px;letter-spacing:1.8px;display:block;color:var(--nav-muted);margin-top:3px}.nav-caption{font-size:10px;font-weight:600;letter-spacing:1px;color:var(--nav-muted);padding:0 15px 10px}nav{display:flex;flex-direction:column;gap:5px}nav button{display:flex;align-items:center;gap:13px;border-radius:8px;padding:11px 15px;text-align:left;color:#becdd6;font-size:13px}nav button span{font-size:20px;line-height:1;width:22px;text-align:center;color:#89a5b4}nav button.active{background:#255064;color:#fff}nav button.active span{color:#76d8d2}nav button:hover{background:#ffffff0d}.side-bottom{margin-top:auto;padding:20px 10px 0;border-top:1px solid #ffffff18;color:#bdd0da;font-size:11px}.local-dot{display:inline-block;background:#66c9b4;border-radius:50%;width:6px;height:6px;margin-right:5px}.side-bottom small{display:block;font-size:10px;color:#8ca5b4;margin-top:5px}.side-bottom>div{display:flex;justify-content:space-between;margin-top:20px;color:#7893a2}.theme-button{padding:0;font-size:10px;color:#bfd3dd}main{margin-left:210px;min-width:0}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:73px;padding:14px 32px;border-bottom:1px solid var(--line);background:var(--panel)}.breadcrumb{font-size:12px;color:var(--muted)}.breadcrumb span{margin-left:9px}.top-actions{display:flex;gap:9px;align-items:center}.button{border:1px solid var(--line);border-radius:7px;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:35px;padding:7px 13px;font-size:12px;font-weight:600;white-space:nowrap}.button.primary{background:var(--accent);border-color:var(--accent);color:#fff}.button.subtle{background:var(--panel);color:var(--ink)}.button:hover{filter:brightness(.97)}details>summary{list-style:none}details>summary::-webkit-details-marker{display:none}.export-menu{position:relative}.export-menu>div{position:absolute;right:0;top:44px;min-width:190px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:5px;z-index:40}.export-menu button{display:block;width:100%;padding:10px;text-align:left;font-size:12px;border-radius:5px}.export-menu button:hover{background:var(--panel-soft)}.workspace{padding:31px 32px 18px;max-width:1800px;margin:auto}.heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:23px}.eyebrow{font-size:9px;letter-spacing:1.8px;color:var(--accent);font-weight:700;margin-bottom:6px}h1{font-size:27px;font-weight:700;letter-spacing:-1px;margin:0 0 5px}h2{font-size:17px;margin:0;letter-spacing:-.4px}p{margin:6px 0;color:var(--muted)}.heading p{font-size:12px}.badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:20px;padding:5px 11px;font-size:11px;white-space:nowrap}.badge.demo{color:var(--warn);background:var(--warn-bg);border-color:#eddbbb}.badge.ready{color:var(--accent);background:var(--accent-soft);border-color:#c8e2e0}.filters{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px 17px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}.filters label{display:block;color:var(--muted);font-size:10px;font-weight:600;margin-bottom:5px}.period{flex:1 1 177px}.period input{width:100%;font-size:11px;min-width:170px}.filter{flex:1 1 115px;min-width:100px}.filter.small{flex:0 0 84px;min-width:84px}.filter select{width:100%;font-size:11px}.multi{position:relative}.multi summary{border:1px solid var(--line);border-radius:7px;min-height:36px;padding:7px 24px 7px 9px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;max-width:210px}.multi summary:after{content:"⌄";position:absolute;right:9px}.multi[open] summary{border-color:var(--accent)}.choices{position:absolute;left:0;top:42px;min-width:240px;max-height:310px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;z-index:50;box-shadow:0 12px 28px #112b3c22}.choices label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:400;color:var(--ink);padding:5px 2px;margin:0;cursor:pointer}.choices .choice-clear{font-size:11px;color:var(--accent);padding:3px 0 8px}.reset{height:36px;margin-bottom:0;padding:6px 9px}.range-caption{font-size:10px;color:var(--muted);padding:9px 2px 17px;display:flex;justify-content:space-between;gap:12px}.notice{border:1px solid #edd7ad;background:var(--warn-bg);border-radius:8px;padding:10px 13px;font-size:11px;color:var(--warn);margin-bottom:18px}.notice.error{border-color:#dbaaaa;color:var(--error)}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:21px}.card{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:17px 19px;min-height:116px}.card-label{font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:8px}.card-label .tiny-icon{font-size:16px;color:var(--accent);background:var(--accent-soft);border-radius:6px;line-height:27px;width:27px;text-align:center}.card-value{font-size:30px;line-height:1.1;letter-spacing:-1px;margin:10px 0 8px;font-weight:650}.card-value small{font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:5px}.card-foot{font-size:10px;color:var(--muted)}.card.highlight{border-top:3px solid var(--accent);padding-top:15px}.grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px;margin-bottom:18px}.grid.equal{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{border:1px solid var(--line);background:var(--panel);border-radius:10px;min-width:0;overflow:hidden;margin-bottom:18px}.grid>.panel{margin-bottom:0}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:18px 20px 9px}.panel-head h2{font-size:13px;letter-spacing:-.2px}.panel-head p{font-size:10px;margin-top:3px}.panel-action{font-size:10px;color:var(--muted);border:1px solid var(--line);padding:3px 7px;border-radius:5px}.panel-body{padding:4px 16px 16px}.chart{width:100%;min-height:235px}.chart svg{width:100%;height:auto;display:block;overflow:visible}.chart-scroll{overflow:auto;max-height:440px;padding:3px 0 8px}.chart-scroll svg{display:block;width:100%;height:auto;min-width:500px}.legend{display:flex;gap:15px;flex-wrap:wrap;align-items:center;font-size:10px;color:var(--muted);margin:4px 0 5px}.legend i{width:8px;height:8px;display:inline-block;border-radius:2px;margin-right:5px}.legend .spacer{margin-left:auto}.panel-note{font-size:10px;color:var(--muted);padding:0 4px 5px}.chart-empty{min-height:225px;display:grid;place-content:center;text-align:center;color:var(--muted);font-size:12px;padding:20px}.chart-empty span{font-size:10px;margin-top:5px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;font-size:11px;white-space:nowrap}th{font-size:10px;color:var(--muted);font-weight:600;background:var(--panel-soft);border-block:1px solid var(--line);padding:11px 16px;text-align:left}th.numeric,td.numeric{text-align:right}th button{font-size:inherit;padding:0;text-align:inherit;color:inherit}td{padding:12px 16px;border-bottom:1px solid var(--line);max-width:320px;overflow:hidden;text-overflow:ellipsis}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--panel-soft)}.name-link{color:var(--accent);font-weight:600;padding:0}.status{font-size:10px;background:var(--panel-soft);border:1px solid var(--line);border-radius:4px;padding:3px 6px}.status.warn{color:var(--warn);background:var(--warn-bg);border-color:#ebd7b4}.table-tools{display:flex;align-items:center;gap:10px;margin-left:auto}.table-tools input{min-height:30px;height:30px;font-size:11px;max-width:190px}.pager{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);border-top:1px solid var(--line);padding:10px 16px}.pager button{border:1px solid var(--line);border-radius:4px;padding:3px 9px;margin-left:5px}.coverage-bar{display:inline-flex;align-items:center;gap:7px}.coverage-bar i{width:44px;height:4px;border-radius:4px;background:var(--line);overflow:hidden}.coverage-bar b{height:4px;background:var(--accent);display:block}.empty-hero{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:410px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:45px 25px}.empty-icon{height:65px;width:65px;background:var(--accent-soft);color:var(--accent);border-radius:17px;display:grid;place-content:center;font-size:35px;margin-bottom:22px}.empty-hero h2{font-size:22px;margin-bottom:8px}.empty-hero p{font-size:12px;max-width:550px;margin-bottom:21px}.empty-hero .button{margin:0 4px}.type-chips{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:26px}.type-chips span{border:1px solid var(--line);border-radius:5px;padding:4px 8px;font-size:10px;color:var(--muted)}.empty-tip{margin-top:20px;font-size:10px;color:var(--muted)}.explain{font-size:12px;color:var(--muted);line-height:1.9}.explain ul{padding-left:20px}.explain strong{color:var(--ink)}.data-types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}.type-card{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:15px}.type-card strong{font-size:12px}.type-card span{float:right;font-size:11px;color:var(--accent)}.type-card p{font-size:10px;margin-top:8px}.toolbar-inline{display:flex;gap:8px;align-items:center}.footer{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:var(--muted);padding:12px 0}.footer button{font-size:10px;color:var(--muted);padding:0}.busy{position:fixed;bottom:25px;left:50%;transform:translateX(-30%);z-index:120;display:grid;grid-template-columns:20px auto;column-gap:12px;row-gap:4px;align-items:center;background:var(--nav);color:#fff;border-radius:10px;padding:15px 22px;box-shadow:0 8px 32px #112b3c35;max-width:90vw}.busy strong{font-size:12px}.busy span{grid-column:2;font-size:10px;color:#bad0dc}.busy progress{grid-column:2;height:4px;width:100%;accent-color:#5bc7bb}.spinner{width:19px;height:19px;border:2px solid #ffffff35;border-top-color:#7ad5cf;border-radius:50%;animation:spin .8s linear infinite;grid-row:1/4}@keyframes spin{to{transform:rotate(360deg)}}#drop-overlay{position:fixed;inset:15px;border:3px dashed var(--accent);border-radius:20px;background:#e5f5f5ef;z-index:150;display:grid;place-content:center;color:#087f8c;text-align:center;font-size:25px;font-weight:700;pointer-events:none}#drop-overlay div{font-size:13px;font-weight:400;margin-top:10px}#toast{position:fixed;bottom:25px;right:25px;border-radius:7px;background:var(--nav);color:white;padding:12px 18px;font-size:12px;z-index:180;max-width:450px;box-shadow:var(--shadow)}dialog{border:1px solid var(--line);border-radius:13px;background:var(--panel);color:var(--ink);padding:24px;width:min(590px,calc(100vw - 30px));max-height:88vh;overflow:auto;box-shadow:0 16px 70px #112b3c40}dialog::backdrop{background:#112b3c80;backdrop-filter:blur(3px)}.dialog-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.dialog-title button{font-size:25px;color:var(--muted);padding:0 0 0 10px}.setting-label{font-size:12px;font-weight:600;display:flex;justify-content:space-between;gap:15px;align-items:center;margin:16px 0 7px}.setting-label select{max-width:275px;font-size:11px}.setting-label input{max-width:90px;text-align:right}.help{font-size:10px;line-height:1.7}.check{font-size:12px;display:flex;gap:8px;align-items:center;margin-top:20px}.dialog-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:24px;padding-top:17px;border-top:1px solid var(--line)}#method-content{font-size:12px;line-height:1.9;color:var(--muted)}#method-content ul{padding-left:18px}#method-content strong{color:var(--ink)}.state-grid{display:flex;gap:10px;flex-wrap:wrap}.state-chip{border:1px solid var(--line);background:var(--panel-soft);border-radius:6px;padding:8px 12px;font-size:11px}.state-chip strong{color:var(--ink);margin-left:8px}.text-danger{color:var(--error)}body.dark{--bg:#101e29;--panel:#172b39;--panel-soft:#1b3040;--ink:#dfeaf1;--muted:#94adbd;--line:#2b4252;--accent:#63c4c3;--accent-soft:#1a3b46;--nav:#0c1b26;--warn:#e5bb74;--warn-bg:#3b3327;--chart-blue:#7ba7d6;--chart-orange:#e1ad67}body.dark .button.primary{color:#0e2b35}body.dark .badge.ready{border-color:#315e63}body.dark .notice{border-color:#6c5631}body.dark .badge.demo{border-color:#6c5631}body.dark input{color-scheme:dark}body.dark #drop-overlay{background:#163c45ee;color:#9be1d9}
+@media(min-width:1600px){.workspace{padding-top:38px}.cards{gap:18px}.card{padding:20px 23px}.card-value{font-size:34px}.chart{min-height:255px}}
+@media(max-width:1200px){.sidebar{width:180px;padding:25px 10px}.brand{font-size:16px;gap:7px}.brand small{font-size:8px}.brand svg{width:30px}main{margin-left:180px}.workspace{padding:25px 21px}.topbar{padding-inline:21px}.cards{gap:10px}.card{padding:15px 13px}.card-value{font-size:26px}.grid{grid-template-columns:1fr 1fr}.filters{gap:9px}.period{flex:1 1 190px}.filter{flex:1 1 120px}}
+@media(max-width:900px){.sidebar{position:relative;inset:auto;width:100%;padding:12px 17px 0}.brand{padding:0 0 12px;font-size:16px}.brand svg{width:26px;height:26px}.brand small{display:none}.nav-caption,.side-bottom{display:none}nav{flex-direction:row;overflow:auto;gap:4px;padding-bottom:8px}nav button{white-space:nowrap;padding:7px 10px;font-size:11px;gap:6px}nav button span{font-size:17px;width:16px}main{margin-left:0}.topbar{min-height:60px}.heading{margin-bottom:18px}.workspace{padding:23px 18px}.grid,.grid.equal{grid-template-columns:1fr}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.card-value{font-size:25px}.card-label{font-size:10px}.card-label .tiny-icon{display:none}.busy{left:50%;transform:translateX(-50%)}}
+@media(max-width:600px){.topbar{padding:12px 15px}.breadcrumb{display:none}.top-actions{width:100%;justify-content:flex-end}.workspace{padding:22px 14px}.heading h1{font-size:24px}.heading p{font-size:10px}.badge{font-size:9px;padding:5px 8px}.eyebrow{font-size:8px}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.card{min-height:106px}.card-value{font-size:29px}.filters{padding:12px;gap:8px}.period{flex:1 1 44%;min-width:0}.period input{min-width:0;font-size:10px;padding:6px}.filter{flex:1 1 30%;min-width:85px}.filter.small{flex:1 1 85px}.multi summary{max-width:none}.choices{min-width:200px}.filter:nth-of-type(5) .choices{left:auto;right:0}.range-caption{font-size:9px;display:block}.panel-head{padding:15px 14px 9px}.panel-body{padding:4px 10px 12px}.table-tools input{max-width:135px}.panel-head h2{font-size:12px}.chart{min-height:0}.data-types{grid-template-columns:repeat(2,minmax(0,1fr))}.footer{font-size:9px}.footer button{font-size:9px}.setting-label{display:block}.setting-label select,.setting-label input{display:block;margin-top:8px;max-width:100%;width:100%}.check{font-size:11px}dialog{padding:20px}.card-foot{font-size:9px}.panel-note{font-size:9px}.legend{font-size:9px;gap:10px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand"><svg viewBox="0 0 36 36" aria-hidden="true"><path d="M5 9h10v10H5zM21 9h10v10H21zM13 25h10v7H13z" fill="currentColor"/><path d="M10 19v3h16v-3M18 22v3" fill="none" stroke="currentColor" stroke-width="2"/></svg><div>HPC Monitor<small>RESOURCE ANALYTICS</small></div></div>
+  <div class="nav-caption">모니터링</div>
+  <nav aria-label="분석 화면">
+    <button data-tab="overview" class="active"><span>◫</span>전체 현황</button>
+    <button data-tab="nodes"><span>▤</span>노드별</button>
+    <button data-tab="groups"><span>▦</span>노드 그룹별</button>
+    <button data-tab="users"><span>♙</span>사용자별</button>
+    <button data-tab="queue"><span>≋</span>작업·대기열</button>
+    <button data-tab="gpu"><span>▧</span>GPU</button>
+    <button data-tab="data"><span>⇄</span>로그·검증</button>
+  </nav>
+  <div class="side-bottom"><span class="local-dot"></span> 브라우저 내 로컬 분석<small>외부 전송 · 계정 연결 없음</small><div>v1.0 <button id="theme-button" class="theme-button" aria-label="화면 테마 전환">다크 모드</button></div></div>
+</aside>
+<main>
+  <header class="topbar"><div class="breadcrumb">HPC 사용량 조회 <span>/</span> <span id="breadcrumb-current">전체 현황</span></div><div class="top-actions"><button id="settings-button" class="button subtle">설정</button><details class="export-menu"><summary class="button subtle">내보내기 ↓</summary><div><button id="export-csv">현재 집계 CSV</button><button id="export-session">통합 로그 JSON</button></div></details><button id="import-button" class="button primary">＋ 로그 불러오기</button></div></header>
+  <div class="workspace">
+    <div class="heading"><div><div class="eyebrow">CLUSTER INSIGHTS</div><h1 id="page-title">사용량 현황</h1><p id="page-subtitle">노드, 사용자, 작업의 사용 흐름을 한눈에 확인하세요.</p></div><span id="dataset-badge" class="badge">데이터 없음</span></div>
+    <section class="filters" aria-label="조회 조건">
+      <div class="period"><label for="from">조회 시작</label><input id="from" type="datetime-local" step="60"></div>
+      <div class="period"><label for="to">조회 종료 <span title="집계 구간의 끝 시각은 포함하지 않습니다. 현황 상태는 이 시각의 스냅샷까지 확인합니다.">ⓘ</span></label><input id="to" type="datetime-local" step="60"></div>
+      <div class="filter"><label>노드 그룹</label><details id="filter-groups" class="multi"><summary>전체 그룹</summary><div class="choices"></div></details></div>
+      <div class="filter"><label>노드</label><details id="filter-nodes" class="multi"><summary>전체 노드</summary><div class="choices"></div></details></div>
+      <div class="filter"><label>사용자</label><details id="filter-users" class="multi"><summary>전체 사용자</summary><div class="choices"></div></details></div>
+      <div class="filter small"><label for="bucket">표시 간격</label><select id="bucket"><option value="hour">시간별</option><option value="day" selected>일별</option><option value="week">주별</option><option value="month">월별</option></select></div>
+      <button class="button subtle reset" id="reset-filters">초기화</button>
+    </section>
+    <div id="range-caption" class="range-caption">탭으로 구분된 TSV · LOG · TXT 파일을 지원합니다.</div>
+    <div id="notice" class="notice" hidden></div>
+    <div id="view"></div>
+    <footer class="footer"><span>HPC Usage Monitor · 로그 기반 이력 분석</span><button id="method-button">집계 기준 보기 ⓘ</button></footer>
+  </div>
+</main>
+<input type="file" id="file-input" multiple hidden>
+<div id="busy" class="busy" hidden role="status"><div class="spinner"></div><strong id="busy-text">로그를 처리하고 있습니다…</strong><progress id="progress" max="100" value="0"></progress><span>화면 조작과 별도로 계산합니다.</span></div>
+<div id="drop-overlay" hidden>로그 파일을 여기에 놓으세요<div>여러 파일을 한 번에 불러올 수 있습니다.</div></div>
+<div id="toast" role="status" hidden></div>
+<dialog id="settings-dialog"><form id="settings-form"><div class="dialog-title"><h2>집계 설정</h2><button type="button" data-close="settings-dialog" aria-label="설정 닫기">×</button></div>
+  <label class="setting-label">시간대가 없는 로그의 시간대<select id="setting-offset"><option value="540">한국시간 · UTC+09:00</option><option value="0">UTC · UTC+00:00</option></select></label>
+  <p class="help">2026-11-10T00:30:00처럼 시간대가 없는 기록에 적용합니다. Z 또는 UTC 오프셋이 있으면 해당 값을 따릅니다.</p>
+  <label class="setting-label">로그 기록 주기 (분)<input id="setting-interval" type="number" min="1" max="1440" step="1" value="30" required></label>
+  <label class="setting-label">queue_started 기록 방식<select id="setting-started"><option value="snapshot">매 주기 실행 중 작업 목록 (기본)</option><option value="event">새로 시작한 작업만 추가</option></select></label>
+  <p class="help">user_cpu의 job_ids를 실행 구간 판단에 우선 사용합니다. 시작 기록만 있는 작업은 이벤트 모드에서 실행 시간을 추정하지 않습니다.</p>
+  <label class="check"><input type="checkbox" id="setting-clock" checked> node_cpu 시각으로 빈 작업 스냅샷 확인</label>
+  <p class="help">모든 로그가 함께 수집된다는 가정입니다. 작업 행이 사라진 시각을 종료로 추정합니다. 파일 일부가 빠졌다면 이 옵션을 끄고 데이터 범위를 확인하세요.</p>
+  <label class="setting-label">사용률 분모<select id="setting-denominator"><option value="observed">기록이 확인된 시간</option><option value="calendar">조회기간 전체 (미관측 구간 제외한 하한)</option></select></label>
+  <label class="setting-label">파일 불러오기 방식<select id="setting-import"><option value="append">기존 데이터에 추가 · 중복 제거</option><option value="replace">기존 데이터 전체 교체</option></select></label>
+  <div class="dialog-actions"><button type="button" class="button subtle" data-close="settings-dialog">취소</button><button type="submit" class="button primary">설정 적용</button></div>
+</form></dialog>
+<dialog id="method-dialog"><div class="dialog-title"><h2>집계 기준과 데이터 범위</h2><button data-close="method-dialog" aria-label="집계 기준 닫기">×</button></div><div id="method-content"></div><div class="dialog-actions"><button class="button primary" data-close="method-dialog">확인</button></div></dialog>
+<script id="hpc-engine" type="text/plain">'use strict';
+/* HPC Usage Monitor 1.0 — standalone, no network dependencies. */
+const HPC = (() => {
+  const TYPES = ['user_cpu','queue_started','queue_pending','node_cpu','gpu_user','gpu'];
+  const SCHEMA = {
+    user_cpu:['timestamp','user','node','partition','cpus_alloc','mem_alloc_mb','n_jobs','job_ids'],
+    queue_started:['timestamp','job_id','user','partition','submit_time','start_time','wait_sec','wait_min','alloc_cpus','n_nodes','state'],
+    queue_pending:['timestamp','job_id','user','partition','qos','req_cpus','submit_time','wait_sec','wait_min','priority','reason'],
+    node_cpu:['timestamp','node','node_type','partitions','state','cpu_total','cpu_alloc','alloc_pct','cpu_load','load_pct','mem_total_mb','mem_alloc_mb','mem_pct'],
+    gpu_user:['timestamp','node','gpu_index','user','job_id','pid','mem_used_mb','proc_name'],
+    gpu:['timestamp','node','gpu_index','uuid','gpu_name','gpu_util','mem_total_mb','mem_used_mb','mem_pct','temp_c','power_w']
+  };
+  const NUMBERS = new Set(['cpus_alloc','mem_alloc_mb','n_jobs','wait_sec','wait_min','alloc_cpus','n_nodes','req_cpus','priority','cpu_total','cpu_alloc','alloc_pct','cpu_load','load_pct','mem_total_mb','mem_pct','gpu_util','mem_used_mb','temp_c','power_w']);
+  const KEY = {user_cpu:['timestamp','user','node','partition'],queue_started:['timestamp','job_id','start_time','submit_time'],queue_pending:['timestamp','job_id','submit_time'],node_cpu:['timestamp','node'],gpu_user:['timestamp','node','gpu_index','pid','user','job_id'],gpu:['timestamp','node','gpu_index']};
+  const DAY = 86400000, HOUR = 3600000;
+  const defaults = {offset:540,interval:30,startedMode:'snapshot',nodeClock:true,denominator:'observed',bucket:'day'};
+  const num = v => v === null || v === undefined || String(v).trim()==='' || /^(?:N\/A|NA|nan|null|none|-)$/i.test(String(v).trim()) ? null : Number.isFinite(Number(String(v).replace(/%$/,''))) ? Number(String(v).replace(/%$/,'')) : null;
+  const ratio = (a,b) => b>0 ? 100*a/b : null;
+  const add = (map,key,fn) => { if(!map.has(key)) map.set(key,fn()); return map.get(key); };
+  const med = a => { if(!a.length)return null; a=a.slice().sort((x,y)=>x-y);const i=a.length>>1;return a.length%2?a[i]:(a[i-1]+a[i])/2; };
+  function time(value,offset=540) {
+    if(typeof value==='number') return Number.isFinite(value)?value:null;
+    const s=String(value||'').trim();
+    if(!s || /^(Unknown|N\/A|None|None assigned|-|0)$/i.test(s)) return null;
+    const m=s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d{1,3})?)?(Z|[+-]\d{2}:?\d{2})?$/i);
+    if(!m)return null;
+    const y=+m[1],mo=+m[2]-1,d=+m[3],h=+m[4],mi=+m[5],se=+(m[6]||0),ms=Math.round(+(m[7]||0)*1000);
+    const t=Date.UTC(y,mo,d,h,mi,se,ms),v=new Date(t);
+    if(v.getUTCFullYear()!==y||v.getUTCMonth()!==mo||v.getUTCDate()!==d||h>23||mi>59||se>59)return null;
+    if(!m[8])return t-offset*60000;
+    if(m[8].toUpperCase()==='Z')return t;
+    const z=m[8].replace(':',''),oh=+z.slice(1,3),om=+z.slice(3,5);
+    if(oh>14||om>59||(oh===14&&om!==0))return null;
+    return t-(z[0]==='-'?-1:1)*(oh*60+om)*60000;
+  }
+  const iso=(t,offset=540)=>new Date(t+offset*60000).toISOString().slice(0,19);
+  const list = v => {
+    const s=String(v||'').trim();
+    if(!s||/^(?:-|none|N\/A|\(null\))$/i.test(s))return [];
+    if(s[0]==='[')try{const a=JSON.parse(s);if(Array.isArray(a))return [...new Set(a.map(String).map(x=>x.trim()).filter(Boolean))];}catch{}
+    /* Keep Slurm compact array identifiers intact; never expand unknown ranges. */
+    const result=[];let part='',depth=0;
+    for(const c of s){if(c==='[')depth++;if(c===']')depth--;if(depth===0&&/[,;|\s]/.test(c)){if(part)result.push(part.replace(/^["']|["']$/g,''));part='';}else part+=c;}
+    if(part)result.push(part.replace(/^["']|["']$/g,''));
+    return [...new Set(result.filter(Boolean))];
+  };
+  function fields(line){
+    const out=[];let v='',q=false;
+    for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&(q||v==='')){if(q&&line[i+1]==='"'){v+='"';i++;}else q=!q;}else if(c==='\t'&&!q){out.push(v);v='';}else v+=c;}
+    if(q)throw new Error('닫히지 않은 큰따옴표');
+    out.push(v);return out;
+  }
+  function detect(h){
+    const set=new Set(h);
+    if(!set.has('timestamp'))return null;
+    const distinctive = {user_cpu:['cpus_alloc','job_ids','user','node'],queue_started:['start_time','job_id','alloc_cpus'],queue_pending:['req_cpus','reason','job_id'],node_cpu:['cpu_total','cpu_alloc','node'],gpu_user:['pid','user','gpu_index'],gpu:['gpu_util','gpu_index','gpu_name']};
+    return TYPES.find(k=>distinctive[k].every(x=>set.has(x)))||null;
+  }
+  function createStore(){return {tables:Object.fromEntries(TYPES.map(k=>[k,new Map()])),files:[],issues:[],issueTotal:0,duplicates:0,conflicts:0,revision:0,cache:null,demo:false};}
+  function issue(store,file,line,message){store.issueTotal++;if(store.issues.length<300)store.issues.push({file,line,message});}
+  function insert(store,type,raw,file,line,summary){
+    const r=Object.create(null);
+    for(const k of SCHEMA[type]){const v=raw[k];r[k]=NUMBERS.has(k)?num(v):String(v??'').trim();}
+    if(time(r.timestamp,540)===null){issue(store,file,line,'timestamp 형식 오류: '+String(r.timestamp).slice(0,80));summary.invalid++;return;}
+    const required=type.startsWith('queue_')?['job_id','user']:type==='gpu_user'?['node','user','gpu_index','pid']:type==='user_cpu'?['node','user']:type==='gpu'?['node','gpu_index']:['node'];
+    if(required.some(k=>r[k]===null||r[k]==='')){issue(store,file,line,'필수 식별자 누락: '+required.join(', '));summary.invalid++;return;}
+    for(const k of ['start_time','submit_time'])if(r[k]&&time(r[k],540)===null)issue(store,file,line,k+' 형식 오류; 해당 시각은 집계에서 제외');
+    for(const k of SCHEMA[type].filter(k=>NUMBERS.has(k))){if(raw[k]!==undefined&&String(raw[k]).trim()&&!/^(?:-|N\/A|NA|nan|null|none)$/i.test(String(raw[k]).trim())&&r[k]===null)issue(store,file,line,k+' 숫자 형식 오류');}
+    for(const k of ['cpus_alloc','cpu_total','cpu_alloc','n_jobs','alloc_cpus','req_cpus','n_nodes','mem_alloc_mb','mem_used_mb','mem_total_mb','wait_sec','wait_min'])if(r[k]!==undefined&&r[k]!==null&&r[k]<0){issue(store,file,line,k+' 음수는 결측값으로 처리');r[k]=null;}
+    if(type==='node_cpu'&&r.cpu_total!==null&&r.cpu_alloc>r.cpu_total)issue(store,file,line,'할당 코어가 전체 코어보다 큼; 원본 수치를 유지');
+    if(type==='user_cpu'&&r.n_jobs!==null&&r.n_jobs!==list(r.job_ids).length)issue(store,file,line,'n_jobs와 job_ids 개수 불일치; 개별 작업 집계는 job_ids 기준');
+    const key=JSON.stringify(KEY[type].map(k=>r[k]));
+    const old=store.tables[type].get(key);
+    if(old){store.duplicates++;summary.duplicates++;if(JSON.stringify(old)!==JSON.stringify(r)){store.conflicts++;issue(store,file,line,'같은 식별자·시각의 값이 다름; 나중에 불러온 행을 사용');}}
+    else summary.rows++;
+    store.tables[type].set(key,r);
+    summary.types.add(type);store.revision++;store.cache=null;
+  }
+  function parser(store,file){
+    const summary={name:file,rows:0,duplicates:0,invalid:0,types:new Set()},state={header:null,type:null,line:0};
+    function feed(s){
+      state.line++;s=s.replace(/^\uFEFF/,'').replace(/\r$/,'');
+      if(!s.trim())return;
+      let f;
+      try{f=fields(s);}catch(e){summary.invalid++;issue(store,file,state.line,e.message);return;}
+      const h=f.map(x=>x.trim().replace(/^#\s*/,'')),type=detect(h);
+      if(type){state.header=h;state.type=type;summary.types.add(type);return;}
+      if(s.startsWith('#'))return;
+      if(!state.header){summary.invalid++;if(summary.invalid<5)issue(store,file,state.line,'인식 가능한 탭 구분 헤더가 필요합니다.');return;}
+      if(f.length!==state.header.length){summary.invalid++;issue(store,file,state.line,'열 개수 불일치 ('+f.length+'/'+state.header.length+')');return;}
+      const raw=Object.create(null);state.header.forEach((k,i)=>{raw[k]=f[i];});
+      insert(store,state.type,raw,file,state.line,summary);
+    }
+    function finish(){const s={...summary,types:[...summary.types]};store.files.push(s);return s;}
+    return {feed,finish};
+  }
+  function loadText(store,text,name='input.tsv'){
+    if(String(text).trimStart().startsWith('{'))return loadSession(store,JSON.parse(text),name);
+    const p=parser(store,name);String(text).split('\n').forEach(p.feed);return p.finish();
+  }
+  async function loadFile(store,file,progress){
+    if(/\.json$/i.test(file.name))return loadSession(store,JSON.parse(await file.text()),file.name);
+    const p=parser(store,file.name),reader=file.stream().getReader(),decoder=new TextDecoder('utf-8');
+    let pending='',read=0;
+    while(true){const {done,value}=await reader.read();if(done)break;read+=value.byteLength;pending+=decoder.decode(value,{stream:true});const lines=pending.split('\n');pending=lines.pop();for(const l of lines)p.feed(l);if(progress)progress(read,file.size);}
+    pending+=decoder.decode();if(pending)p.feed(pending);return p.finish();
+  }
+  function loadSession(store,obj,name){
+    if(obj.format!=='hpc-monitor-session'||!obj.tables||typeof obj.tables!=='object')throw new Error('지원하는 통합 JSON 파일이 아닙니다.');
+    if(obj.demo===true)store.demo=true;
+    if(obj.settings&&typeof obj.settings==='object'){
+      const r=obj.settings,v={};
+      if([0,540].includes(+r.offset))v.offset=+r.offset;
+      if(Number.isFinite(+r.interval)&&+r.interval>=1&&+r.interval<=1440)v.interval=+r.interval;
+      if(['snapshot','event'].includes(r.startedMode))v.startedMode=r.startedMode;
+      if(typeof r.nodeClock==='boolean')v.nodeClock=r.nodeClock;
+      if(['observed','calendar'].includes(r.denominator))v.denominator=r.denominator;
+      if(['hour','day','week','month'].includes(r.bucket))v.bucket=r.bucket;
+      store.importedSettings=v;
+    }
+    const summary={name,rows:0,duplicates:0,invalid:0,types:new Set()};
+    for(const type of TYPES)if(Array.isArray(obj.tables[type])){summary.types.add(type);obj.tables[type].forEach((r,i)=>{if(r&&typeof r==='object'&&!Array.isArray(r))insert(store,type,r,name,i+1,summary);else{summary.invalid++;issue(store,name,i+1,'JSON 행 형식 오류');}});}
+    const s={...summary,types:[...summary.types]};store.files.push(s);return s;
+  }
+  function session(store,settings){return {format:'hpc-monitor-session',version:1,settings,demo:store.demo,tables:Object.fromEntries(TYPES.map(k=>[k,[...store.tables[k].values()]]))};}
+  function normalize(store,opt){
+    const key=store.revision+':'+opt.offset;
+    if(store.cache?.key===key)return store.cache.value;
+    const tables=Object.create(null),times=Object.create(null),nodes=new Map(),users=new Set(),groups=new Set();
+    let min=Infinity,max=-Infinity;
+    for(const type of TYPES){
+      tables[type]=[...store.tables[type].values()].map(r=>({...r,t:time(r.timestamp,opt.offset),sub:time(r.submit_time,opt.offset),start:time(r.start_time,opt.offset)})).sort((a,b)=>a.t-b.t);
+      times[type]=[...new Set(tables[type].map(r=>r.t))];
+      if(times[type].length){min=Math.min(min,times[type][0]);max=Math.max(max,times[type].at(-1));}
+      for(const r of tables[type]){
+        if(r.user)users.add(r.user);
+        const gs=list(r.partitions||r.partition);gs.forEach(g=>groups.add(g));
+        if(r.node){const n=add(nodes,r.node,()=>({name:r.node,groups:new Set(),cores:null,nodeType:'',hasCPU:false}));gs.forEach(g=>n.groups.add(g));if(type==='node_cpu')n.hasCPU=true;if(r.cpu_total!==undefined&&r.cpu_total!==null)n.cores=r.cpu_total;if(r.node_type)n.nodeType=r.node_type;}
+      }
+    }
+    const v={tables,times,nodes,users:[...users].sort(),groups:[...groups].sort(),min:Number.isFinite(min)?min:null,max:Number.isFinite(max)?max:null};
+    store.cache={key,value:v};return v;
+  }
+  function bucketStart(t,mode,offset){
+    const local=t+offset*60000;
+    if(mode==='hour')return Math.floor(local/HOUR)*HOUR-offset*60000;
+    if(mode==='month'){const d=new Date(local);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)-offset*60000;}
+    const day=Math.floor(local/DAY)*DAY-offset*60000;
+    return mode==='week'?day-((new Date(local).getUTCDay()+6)%7)*DAY:day;
+  }
+  function nextBucket(t,mode,offset){
+    if(mode==='month'){const d=new Date(t+offset*60000);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)-offset*60000;}
+    return t+(mode==='hour'?HOUR:mode==='week'?7*DAY:DAY);
+  }
+  function splits(a,b,mode,offset,fn){for(let t=a;t<b;){const bs=bucketStart(t,mode,offset),end=Math.min(b,nextBucket(bs,mode,offset));fn(bs,(end-t)/1000,t,end);t=end;}}
+  function intervals(rows,entity,clock,step,end){
+    const by=new Map(),nextClock=new Map();
+    for(let i=0;i<clock.length;i++)nextClock.set(clock[i],clock[i+1]??clock[i]);
+    rows.forEach(r=>add(by,entity(r),()=>[]).push(r));
+    const out=[];
+    for(const arr of by.values())for(let i=0;i<arr.length;i++){
+      const r=arr[i],next=arr[i+1]?.t??end,c=nextClock.get(r.t),b=Math.min(next,r.t+step,end,c===undefined?end:c);
+      if(b>r.t)out.push({a:r.t,b,r});
+    }
+    return out;
+  }
+  function mergeRanges(ranges){
+    const a=ranges.filter(x=>x[1]>x[0]).sort((x,y)=>x[0]-y[0]),out=[];
+    for(const r of a){const p=out.at(-1);if(p&&r[0]<=p[1])p[1]=Math.max(p[1],r[1]);else out.push(r.slice());}return out;
+  }
+  const seconds=ranges=>mergeRanges(ranges).reduce((s,r)=>s+(r[1]-r[0])/1000,0);
+  function stats(){return {observed:0,busy:0,coreSec:0,capacitySec:0,memSec:0,memWeight:0,loadSec:0,loadWeight:0,gpuSec:0,gpuWeight:0,gpuMemSec:0,tempMax:null,powerSec:0,powerWeight:0,jobs:new Set(),nodes:new Set()};}
+  function analyze(store,options={}){
+    const opt={...defaults,...options},n=normalize(store,opt),T=n.tables,step=Math.max(1,Number(opt.interval)||30)*60000;
+    const available=Object.fromEntries(TYPES.map(k=>[k,store.files.some(f=>f.types.includes(k))||T[k].length>0]));
+    const empty={empty:true,meta:metadata(store,n),settings:opt};
+    if(n.min===null)return empty;
+    const from=Number.isFinite(opt.from)?opt.from:n.min,to=Number.isFinite(opt.to)?opt.to:n.max;
+    if(!(to>from))return {...empty,error:'집계에는 서로 다른 시각의 기록이 두 개 이상 필요합니다. 종료 시각은 시작 시각보다 뒤여야 합니다.'};
+    if((to-from)/DAY>3653)return {...empty,error:'한 번에 조회할 수 있는 기간은 최대 10년입니다.'};
+    if(opt.bucket==='hour'&&(to-from)/HOUR>240)opt.bucket='day';
+    if(opt.bucket==='day'&&(to-from)/DAY>240)opt.bucket='week';
+    if(opt.bucket==='week'&&(to-from)/DAY/7>240)opt.bucket='month';
+    const choose=(a,v)=>!a?.length||a.includes(v),chooseGroups=gs=>!opt.groups?.length||gs.some(g=>opt.groups.includes(g));
+    const eligibleNode=name=>choose(opt.nodes,name)&&chooseGroups([...(n.nodes.get(name)?.groups||[])]);
+    const nodeNames=[...n.nodes.keys()].filter(eligibleNode);
+    const selected=new Set(nodeNames),userMatch=r=>choose(opt.users,r.user);
+    const rowGroup=r=>chooseGroups(list(r.partition||r.partitions));
+    const nodeStats=new Map(),groupStats=new Map(),userStats=new Map(),gpuStats=new Map(),daily=new Map(),heat=new Map(),gpuHeat=new Map();
+    const newDay=t=>({t,submitted:new Set(),started:new Set(),running:new Set(),jobSec:0,coreSec:0,capacitySec:0,observed:0,busy:0,gpuSec:0,gpuWeight:0,pendingMax:0,wait:[]});
+    for(let b=bucketStart(from,opt.bucket,opt.offset);b<to;b=nextBucket(b,opt.bucket,opt.offset))daily.set(b,newDay(b));
+    const day=t=>add(daily,bucketStart(t,opt.bucket,opt.offset),()=>newDay(bucketStart(t,opt.bucket,opt.offset)));
+    const clip=(a,b)=>[Math.max(a,from),Math.min(b,to)];
+    const userIntervals=intervals(T.user_cpu,r=>JSON.stringify([r.user,r.node,r.partition]),opt.nodeClock?[...new Set([...n.times.user_cpu,...n.times.node_cpu])].sort((a,b)=>a-b):n.times.user_cpu,step,opt.nodeClock?Math.max(n.times.user_cpu.at(-1)??-Infinity,n.times.node_cpu.at(-1)??-Infinity):n.times.user_cpu.at(-1));
+    const uAt=new Map();
+    for(const r of T.user_cpu)if(selected.has(r.node)&&userMatch(r)&&rowGroup(r)){
+      const a=add(uAt,JSON.stringify([r.t,r.node]),()=>({cpu:0,mem:0,cpuKnown:false,memKnown:false,ids:new Set()}));
+      if(r.cpus_alloc!==null){a.cpu+=r.cpus_alloc;a.cpuKnown=true;}if(r.mem_alloc_mb!==null){a.mem+=r.mem_alloc_mb;a.memKnown=true;}list(r.job_ids).forEach(id=>a.ids.add(id));
+    }
+    const filteringUsers=!!opt.users?.length,filteringGroups=!!opt.groups?.length;
+    const userSampleTimes=new Set(n.times.user_cpu);
+    const hasJobEvidence=available.user_cpu||(opt.startedMode==='snapshot'&&available.queue_started);
+    nodeNames.filter(name=>n.nodes.get(name)?.hasCPU).forEach(name=>nodeStats.set(name,stats()));
+    const nodeInt=intervals(T.node_cpu,r=>r.node,n.times.node_cpu,step,n.times.node_cpu.at(-1));
+    let physicalCapacity=0;
+    for(const it of nodeInt){
+      const r=it.r;if(!selected.has(r.node))continue;
+      const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+      if(r.cpu_total!==null)physicalCapacity+=r.cpu_total*(b-a)/1000;
+      const user=uAt.get(JSON.stringify([r.t,r.node]));
+      /* User allocation is only attributed at a synchronized sample. */
+      const scoped=filteringUsers;
+      const absentUserKnown=available.user_cpu&&(userSampleTimes.has(r.t)||(opt.nodeClock&&r.cpu_alloc===0));
+      const cpu=scoped?(user?(user.cpuKnown?user.cpu:null):(absentUserKnown?0:null)):r.cpu_alloc;
+      const mem=scoped?(user?(user.memKnown?user.mem:null):(absentUserKnown?0:null)):r.mem_alloc_mb;
+      const s=add(nodeStats,r.node,stats);
+      const gs=[...(n.nodes.get(r.node)?.groups||[])].filter(g=>choose(opt.groups,g)),targets=[s,...gs.map(g=>add(groupStats,g,stats))];
+      targets.forEach(v=>v.nodes.add(r.node));
+      splits(a,b,opt.bucket,opt.offset,(bt,sec)=>{
+        const d=day(bt),h=add(heat,JSON.stringify([r.node,bt]),()=>({node:r.node,t:bt,core:0,cap:0,busy:0,obs:0}));
+        for(const v of [...targets,d]){
+          if(cpu!==null){v.observed+=sec;if(cpu>0)v.busy+=sec;v.coreSec+=cpu*sec;if(r.cpu_total!==null)v.capacitySec+=r.cpu_total*sec;}
+          if(mem!==null&&r.mem_total_mb>0){v.memSec=(v.memSec||0)+(100*mem/r.mem_total_mb)*sec;v.memWeight=(v.memWeight||0)+sec;}
+          if(!scoped&&r.load_pct!==null){v.loadSec=(v.loadSec||0)+r.load_pct*sec;v.loadWeight=(v.loadWeight||0)+sec;}
+        }
+        if(cpu!==null){h.obs+=sec;h.core+=cpu*sec;if(r.cpu_total!==null)h.cap+=r.cpu_total*sec;if(cpu>0)h.busy+=sec;}
+      });
+    }
+    for(const it of userIntervals){
+      const r=it.r;if(!selected.has(r.node)||!userMatch(r)||!rowGroup(r))continue;
+      const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+      const u=add(userStats,r.user,stats);u.nodes.add(r.node);
+      const sec=(b-a)/1000;if(r.cpus_alloc!==null){u.coreSec+=r.cpus_alloc*sec;u.observed+=sec;if(!available.node_cpu)splits(a,b,opt.bucket,opt.offset,(bt,s)=>{day(bt).coreSec+=r.cpus_alloc*s;});}
+    }
+    const jobs=new Map(),byId=new Map();
+    function getJob(r,kind){
+      const id=String(r.job_id),key=JSON.stringify([id,r.sub??r.start??'unknown']);
+      let j=jobs.get(key);
+      if(!j){j={key,id,user:r.user||'',partition:r.partition||'',submit:r.sub,start:r.start,state:r.state||'',alloc:r.alloc_cpus??null,nNodes:r.n_nodes??null,wait:r.wait_sec??(r.wait_min!==null&&r.wait_min!==undefined?r.wait_min*60:null),nodes:new Set(),ranges:[],nodeRanges:new Map(),cpuObservations:[],observations:[],source:new Set(),hasCPU:false,lastPending:null};jobs.set(key,j);add(byId,id,()=>[]).push(j);}
+      if(r.start!==null&&r.start!==undefined)j.start=r.start;if(r.state)j.state=r.state;
+      if(kind==='queue_started'){j.source.add(kind);j.observations.push(r.t);if(r.alloc_cpus!==null)j.alloc=r.alloc_cpus;if(r.n_nodes!==null)j.nNodes=r.n_nodes;if(r.wait_sec!==null)j.wait=r.wait_sec;else if(r.wait_min!==null)j.wait=r.wait_min*60;}
+      else if(kind==='queue_pending'){j.source.add(kind);j.lastPending=r;}
+      return j;
+    }
+    T.queue_pending.forEach(r=>getJob(r,'queue_pending'));T.queue_started.forEach(r=>getJob(r,'queue_started'));
+    function resolveJob(id,r){
+      const candidates=byId.get(id)||[];
+      let j=candidates.filter(j=>j.user===r.user&&(j.start??j.submit??-Infinity)<=r.t).sort((a,b)=>(b.start??b.submit??0)-(a.start??a.submit??0))[0];
+      if(!j)j=getJob({job_id:id,user:r.user,partition:r.partition,sub:null,start:null,state:''},'user_cpu');
+      return j;
+    }
+    for(const r of T.user_cpu)for(const id of list(r.job_ids)){const j=resolveJob(id,r);j.hasCPU=true;j.nodes.add(r.node);j.source.add('user_cpu');}
+    const presenceClock=opt.nodeClock?[...new Set([...n.times.user_cpu,...n.times.node_cpu])].sort((a,b)=>a-b):n.times.user_cpu;
+    const clockNext=new Map(presenceClock.map((t,i)=>[t,presenceClock[i+1]??null]));
+    const startNext=new Map(n.times.queue_started.map((t,i)=>[t,n.times.queue_started[i+1]??null]));
+    for(const it of userIntervals){const r=it.r;for(const id of list(r.job_ids)){
+      const j=resolveJob(id,r);j.cpuObservations.push(r.t);
+      if(selected.has(r.node)&&userMatch(r)&&rowGroup(r)){j.ranges.push([it.a,it.b]);add(j.nodeRanges,r.node,()=>[]).push([it.a,it.b]);}
+    }}
+    /* The last point has no duration, but is still evidence that a job exists. */
+    for(const r of T.user_cpu)for(const id of list(r.job_ids))resolveJob(id,r).cpuObservations.push(r.t);
+    for(const j of jobs.values())if(!j.hasCPU&&opt.startedMode==='snapshot'){
+      for(const t of j.observations){const next=startNext.get(t);if(next!==null&&next!==undefined){const b=Math.min(t+step,next);if(b>t)j.ranges.push([t,b]);}}
+    }
+    const visibleJobs=[],pendingAt=new Map(),reason=new Map();
+    const rangeSec=(to-from)/1000;
+    let submitted=0,started=0,running=0,inferredEnded=0,totalJobSec=0;const waits=[],activity=new Map();
+    const queueClock=[...new Set([...n.times.queue_pending,...n.times.queue_started,...(opt.nodeClock?n.times.node_cpu:[])])].filter(t=>t>=from&&t<=to).sort((a,b)=>a-b);
+    const lastQueue=queueClock.at(-1)??null;
+    const currentPending=new Map();
+    for(const r of T.queue_pending)if(r.t===lastQueue)currentPending.set(getJob(r,'queue_pending').key,r);
+    const perNodeJobs=new Map(),perGroupJobs=new Map(),perNodeJobSeconds=new Map(),perGroupJobSeconds=new Map();
+    for(const j of jobs.values()){
+      if(!choose(opt.users,j.user)||!chooseGroups(list(j.partition)))continue;
+      if(opt.nodes?.length&&!([...j.nodes].some(x=>opt.nodes.includes(x))))continue;
+      if(filteringGroups&&j.nodes.size&&!([...j.nodes].some(x=>selected.has(x))))continue;
+      let ranges=mergeRanges(j.ranges);
+      /* Known start time refines only the first observed, contiguous interval. */
+      const firstEvidence=(j.hasCPU?j.cpuObservations:j.observations).reduce((a,b)=>Math.min(a,b),Infinity);
+      if(ranges.length&&ranges[0][0]===firstEvidence&&j.start!==null&&j.start<=ranges[0][0]&&ranges[0][0]-j.start<=step)ranges[0][0]=j.start;
+      ranges=mergeRanges(ranges.map(r=>clip(...r)).filter(r=>r[1]>r[0]));
+      const sec=seconds(ranges),isSub=j.submit!==null&&j.submit>=from&&j.submit<to,isStart=j.start!==null&&j.start>=from&&j.start<to;
+      const pendingRecord=currentPending.get(j.key);
+      const pending=pendingRecord&&!(j.start!==null&&j.start<=lastQueue);
+      if(!sec&&!isSub&&!isStart&&!pending)continue;
+      const u=add(userStats,j.user||'미상',stats);u.nodes=new Set([...u.nodes,...[...j.nodes].filter(x=>selected.has(x))]);
+      if(isSub){submitted++;u.submitted=(u.submitted||0)+1;day(j.submit).submitted.add(j.key);}
+      if(isStart){started++;u.started=(u.started||0)+1;day(j.start).started.add(j.key);const w=j.wait??(j.submit!==null?(j.start-j.submit)/1000:null);if(w!==null&&w>=0){waits.push(w);day(j.start).wait.push(w);}}
+      if(sec){running++;u.jobs.add(j.key);u.jobSec=(u.jobSec||0)+sec;totalJobSec+=sec;add(activity,j.user,()=>[]).push(...ranges);
+        for(const [a,b] of ranges)splits(a,b,opt.bucket,opt.offset,(bt,s)=>{day(bt).running.add(j.key);day(bt).jobSec+=s;});
+      }
+      const obs=[...new Set(j.hasCPU?j.cpuObservations:j.observations)].sort((a,b)=>a-b),last=obs.filter(t=>t<=to).at(-1);
+      const clock=j.hasCPU?clockNext:startNext,nxt=clock.get(last),ended=last!==undefined&&nxt!==null&&nxt!==undefined&&nxt-last<=step*1.1&&nxt<=to;
+      const status=pending?'대기':ended?'종료 추정':sec?'종료 미확인':isStart?'시작 기록':'제출 기록';
+      if(ended&&sec)inferredEnded++;
+      if(pending){pendingAt.set(j.key,{...j,pendingRecord});const r=pendingRecord.reason||'미상';reason.set(r,(reason.get(r)||0)+1);}
+      const groupJobRanges=new Map();
+      for(const [node,rs]of j.nodeRanges){const refined=mergeRanges(rs);if(refined.length&&refined[0][0]===firstEvidence&&j.start!==null&&j.start<=firstEvidence&&firstEvidence-j.start<=step)refined[0][0]=j.start;const clipped=refined.map(r=>clip(...r)),duration=seconds(clipped);if(duration>0){add(perNodeJobs,node,()=>new Set()).add(j.key);perNodeJobSeconds.set(node,(perNodeJobSeconds.get(node)||0)+duration);for(const g of n.nodes.get(node)?.groups||[]){add(perGroupJobs,g,()=>new Set()).add(j.key);add(groupJobRanges,g,()=>[]).push(...clipped);}}}
+      for(const [g,rs]of groupJobRanges)perGroupJobSeconds.set(g,(perGroupJobSeconds.get(g)||0)+seconds(rs));
+      const waitValue=j.start!==null&&j.start<=to?(j.wait??(j.submit!==null?(j.start-j.submit)/1000:null)):null;
+      visibleJobs.push({id:j.id,user:j.user,partition:j.partition,nodes:[...j.nodes].join(', '),submit:j.submit,start:j.start!==null&&j.start<=to?j.start:null,last:last??null,end:ended?nxt:null,status,state:j.state,wallHours:sec?sec/3600:null,waitMin:waitValue===null?null:waitValue/60,alloc:j.alloc,source:[...j.source].join(', '),key:j.key,ranges});
+    }
+    const pendingSamples=new Map();
+    for(const r of T.queue_pending)if(r.t>=from&&r.t<to&&userMatch(r)&&rowGroup(r)&&!opt.nodes?.length)add(pendingSamples,r.t,()=>new Set()).add(JSON.stringify([r.job_id,r.sub]));
+    for(const [t,set] of pendingSamples)day(t).pendingMax=Math.max(day(t).pendingMax,set.size);
+    const gpuUserInt=intervals(T.gpu_user,r=>JSON.stringify([r.node,r.gpu_index,r.pid,r.user,r.job_id]),opt.nodeClock?[...new Set([...n.times.gpu_user,...n.times.gpu])].sort((a,b)=>a-b):n.times.gpu_user,step,opt.nodeClock?Math.max(n.times.gpu_user.at(-1)??-Infinity,n.times.gpu.at(-1)??-Infinity):n.times.gpu_user.at(-1));
+    const userGPURanges=new Map(),allowedGPUs=new Set(),gpuMem=new Map();
+    for(const it of gpuUserInt){const r=it.r;if(!selected.has(r.node)||!userMatch(r))continue;const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+      const u=add(userStats,r.user,stats),sec=(b-a)/1000;u.nodes.add(r.node);if(r.mem_used_mb!==null){u.gpuMemSec+=r.mem_used_mb*sec;u.gpuWeight+=sec;}
+      const gid=r.node+'/GPU'+r.gpu_index;allowedGPUs.add(gid);add(userGPURanges,JSON.stringify([r.user,gid]),()=>[]).push([a,b]);
+      const gm=add(gpuMem,gid,()=>({memSec:0,processSec:0,users:new Set()}));gm.users.add(r.user);if(r.mem_used_mb!==null)gm.memSec+=r.mem_used_mb*sec;gm.processSec+=sec;
+    }
+    for(const [key,ranges]of userGPURanges){const [user]=JSON.parse(key);add(userStats,user,stats).gpuDeviceSec=(userStats.get(user).gpuDeviceSec||0)+seconds(ranges);}
+    const gpuInt=intervals(T.gpu,r=>r.node+'/GPU'+r.gpu_index,n.times.gpu,step,n.times.gpu.at(-1));
+    for(const it of gpuInt){const r=it.r,gid=r.node+'/GPU'+r.gpu_index;if(!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+      const g=add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));
+      if(r.temp_c!==null)g.tempMax=Math.max(g.tempMax??-Infinity,r.temp_c);if(r.mem_used_mb!==null)g.memMax=Math.max(g.memMax??-Infinity,r.mem_used_mb);
+      splits(a,b,opt.bucket,opt.offset,(bt,sec)=>{
+        const d=day(bt),h=add(gpuHeat,JSON.stringify([gid,bt]),()=>({node:gid,t:bt,value:0,weight:0}));
+        g.observed+=sec;if(r.gpu_util!==null){g.gpuSec+=r.gpu_util*sec;g.gpuWeight+=sec;d.gpuSec+=r.gpu_util*sec;d.gpuWeight+=sec;h.value+=r.gpu_util*sec;h.weight+=sec;}
+        if(r.mem_pct!==null){g.memSec+=r.mem_pct*sec;g.memWeight+=sec;}if(r.power_w!==null){g.powerSec+=r.power_w*sec;g.powerWeight+=sec;}
+      });
+    }
+    for(const r of T.gpu){const gid=r.node+'/GPU'+r.gpu_index;if(r.t<from||r.t>=to||!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const g=add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));if(r.temp_c!==null)g.tempMax=Math.max(g.tempMax??-Infinity,r.temp_c);if(r.mem_used_mb!==null)g.memMax=Math.max(g.memMax??-Infinity,r.mem_used_mb);}
+    const states=new Map();for(const r of T.node_cpu)if(r.t<=to)states.set(r.node,r.state);
+    const ns=[...nodeStats].map(([name,s])=>({...s,name,state:states.get(name)||'',groups:[...(n.nodes.get(name)?.groups||[])].join(', '),type:n.nodes.get(name)?.nodeType||'',cores:n.nodes.get(name)?.cores,jobs:hasJobEvidence?(perNodeJobs.get(name)?.size||0):null,jobHours:hasJobEvidence?(perNodeJobSeconds.get(name)||0)/3600:null,coreHours:filteringUsers&&!available.user_cpu?null:s.coreSec/3600,busyHours:s.busy/3600,busyPct:ratio(s.busy,opt.denominator==='calendar'?rangeSec:s.observed),coveredBusyPct:ratio(s.busy,s.observed),allocPct:ratio(s.coreSec,opt.denominator==='calendar'?(n.nodes.get(name)?.cores??0)*rangeSec:s.capacitySec),coverage:ratio(s.observed,rangeSec),memPct:s.memWeight?s.memSec/s.memWeight:null,loadPct:s.loadWeight?s.loadSec/s.loadWeight:null}));
+    const capacity=ns.reduce((a,s)=>a+s.capacitySec,0),observed=ns.reduce((a,s)=>a+s.observed,0),busy=ns.reduce((a,s)=>a+s.busy,0),cores=ns.reduce((a,s)=>a+s.coreSec,0);
+    const fullNode=rangeSec*nodeNames.filter(x=>n.nodes.get(x)?.hasCPU).length,fullCore=rangeSec*nodeNames.reduce((a,x)=>a+(n.nodes.get(x)?.cores||0),0);
+    const users=[...userStats].map(([name,s])=>({name,coreHours:available.user_cpu?s.coreSec/3600:null,jobs:hasJobEvidence?s.jobs.size:null,submitted:available.queue_pending||available.queue_started?s.submitted||0:null,started:available.queue_started?s.started||0:null,jobHours:hasJobEvidence?(s.jobSec||0)/3600:null,activityPct:hasJobEvidence?ratio(seconds(activity.get(name)||[]),rangeSec):null,contribution:available.user_cpu?ratio(s.coreSec,opt.denominator==='calendar'?fullCore:physicalCapacity):null,gpuHours:available.gpu_user?(s.gpuDeviceSec||0)/3600:null,gpuMemHours:available.gpu_user?(s.gpuMemSec||0)/3600:null,nodes:[...s.nodes].join(', ')})).sort((a,b)=>(b.coreHours||b.gpuHours||0)-(a.coreHours||a.gpuHours||0));
+    const groups=[...groupStats].map(([name,s])=>({name,nodeCount:s.nodes.size,jobs:hasJobEvidence?(perGroupJobs.get(name)?.size||0):null,jobHours:hasJobEvidence?(perGroupJobSeconds.get(name)||0)/3600:null,coreHours:filteringUsers&&!available.user_cpu?null:s.coreSec/3600,busyHours:s.busy/3600,allocPct:ratio(s.coreSec,opt.denominator==='calendar'?rangeSec*[...s.nodes].reduce((a,x)=>a+(n.nodes.get(x)?.cores||0),0):s.capacitySec),busyPct:ratio(s.busy,opt.denominator==='calendar'?s.nodes.size*rangeSec:s.observed),coverage:ratio(s.observed,s.nodes.size*rangeSec)}));
+    const gpu=[...gpuStats.values()].map(g=>({id:g.id,node:g.node,name:g.name,util:g.gpuWeight?g.gpuSec/g.gpuWeight:null,memPct:g.memWeight?g.memSec/g.memWeight:null,tempMax:g.tempMax,power:g.powerWeight?g.powerSec/g.powerWeight:null,energyWh:g.powerWeight?g.powerSec/3600:null,memMax:g.memMax,coverage:ratio(g.observed,rangeSec),users:[...(gpuMem.get(g.id)?.users||[])].join(', ')}));
+    const activeClockRows=T.node_cpu.filter(r=>r.t>=from&&r.t<=to&&selected.has(r.node)),lastNodeTs=activeClockRows.at(-1)?.t;
+    const latestNodes=lastNodeTs!==undefined?activeClockRows.filter(r=>r.t===lastNodeTs).map(r=>({node:r.node,state:r.state,cpu:r.cpu_alloc,total:r.cpu_total,mem:r.mem_pct})):[]; 
+    return {empty:false,settings:opt,meta:metadata(store,n),from,to,summary:{submitted:available.queue_pending||available.queue_started?submitted:null,started:available.queue_started?started:null,running:hasJobEvidence?running:null,jobHours:hasJobEvidence?totalJobSec/3600:null,inferredEnded,coreHours:filteringUsers&&!available.user_cpu?null:available.node_cpu?cores/3600:available.user_cpu?users.reduce((s,u)=>s+(u.coreHours||0),0):null,busyPct:ratio(busy,opt.denominator==='calendar'?fullNode:observed),coveredBusyPct:ratio(busy,observed),allocPct:ratio(cores,opt.denominator==='calendar'?fullCore:capacity),coverage:ratio(observed,fullNode),nodes:nodeNames.length,users:users.length,waitMedian:med(waits),waitMean:waits.length?waits.reduce((a,b)=>a+b,0)/waits.length:null,pending:opt.nodes?.length||!available.queue_pending?null:pendingAt.size,gpuUtil:(()=>{let v=0,w=0;for(const g of gpuStats.values()){v+=g.gpuSec;w+=g.gpuWeight;}return w?v/w:null;})()},
+      series:[...daily.values()].sort((a,b)=>a.t-b.t).map(d=>({t:d.t,submitted:available.queue_pending||available.queue_started?d.submitted.size:null,started:available.queue_started?d.started.size:null,running:hasJobEvidence?d.running.size:null,jobHours:hasJobEvidence?d.jobSec/3600:null,coreHours:d.capacitySec||!available.node_cpu&&available.user_cpu?d.coreSec/3600:null,busyPct:ratio(d.busy,d.observed),allocPct:ratio(d.coreSec,d.capacitySec),pendingMax:available.queue_pending&&!opt.nodes?.length?d.pendingMax:null,gpuUtil:d.gpuWeight?d.gpuSec/d.gpuWeight:null,waitMedian:med(d.wait)})),
+      nodes:ns.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true})),groups,users,gpu,jobs:visibleJobs.sort((a,b)=>(b.start??b.submit??b.last??0)-(a.start??a.submit??a.last??0)),
+      heat:[...heat.values()].map(h=>({node:h.node,t:h.t,value:ratio(h.core,h.cap),coverage:ratio(h.obs,(Math.min(to,nextBucket(h.t,opt.bucket,opt.offset))-Math.max(from,h.t))/1000)})),
+      gpuHeat:[...gpuHeat.values()].map(h=>({node:h.node,t:h.t,value:h.weight?h.value/h.weight:null,coverage:ratio(h.weight,(Math.min(to,nextBucket(h.t,opt.bucket,opt.offset))-Math.max(from,h.t))/1000)})),
+      reasons:[...reason].map(([name,count])=>({name,count})),pendingRows:[...pendingAt.values()].map(j=>({id:j.id,user:j.user,partition:j.partition,cpus:j.pendingRecord.req_cpus,waitMin:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(j.submit!==null?(lastQueue-j.submit)/1000:null)))===null?null:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(lastQueue-j.submit)/1000))/60,reason:j.pendingRecord.reason,priority:j.pendingRecord.priority})),
+      latestNodes,lastQueue,lastNodeTs,
+      notices:[
+        '30분 사이에 시작하고 끝난 작업은 로그에 잡히지 않을 수 있습니다. 제출·시작 건수는 관측된 작업 기준입니다.',
+        '작업 소멸은 종료로 추정하며 성공·실패를 의미하지 않습니다. 종료 시각은 다음 확인 기록 시각, 오차는 최대 기록 주기 수준입니다.',
+        '각 상태를 다음 기록까지 유지한다고 가정합니다. 긴 기록 공백은 최대 한 주기까지만 적분하고, 마지막 기록 이후는 연장하지 않습니다.',
+        '빈 사용자·대기 기록과 수집 실패는 행만으로 완전히 구분할 수 없습니다. node_cpu 시각을 빈 스냅샷 기준으로 사용할 수 있습니다.',
+        filteringUsers?'사용자 필터의 분모는 선택 노드 전체입니다. 전체 사용자 기록이 확인된 시점에서 선택 사용자만 없으면 미사용으로 추정합니다. 사용자 로그 전체가 빠진 가동 시점은 미관측 처리합니다.':'코어 할당률은 계산 효율이 아닙니다. CPU load와 실제 CPU 계산 사용률도 구분합니다.',
+        'GPU 사용자 사용시간은 프로세스 관측 기반 GPU·h이며 공유 GPU에서는 사용자 합계가 장치 시간보다 클 수 있습니다.',
+        ...(filteringUsers?['GPU 사용률·온도·전력은 선택 사용자가 사용한 GPU 장치 전체 값입니다. 사용자별 계산 사용률로 배분하지 않습니다.']:[]),
+        ...(!T.node_cpu.length?['node_cpu가 없어 전체 코어 용량·노드 사용률·관측률을 계산할 수 없습니다.']:[]),
+        ...(filteringUsers&&!T.user_cpu.length?['user_cpu가 없어 사용자별 CPU 할당을 계산할 수 없습니다.']:[]),
+        ...(filteringGroups?['노드 그래프는 선택 partition에 속한 물리 노드 전체를 보여줍니다. 사용자별 집계는 작업 partition도 적용합니다.']:[]),
+        ...(nodeNames.some(x=>(n.nodes.get(x)?.groups.size||0)>1)?['여러 partition에 속한 노드는 그룹별 표에 중복 포함될 수 있습니다. 전체 합계에서는 한 번만 계산합니다.']:[]),
+        ...(opt.denominator==='calendar'?['전체 조회기간 기준 비율은 미관측 시간의 작업량을 포함하지 않은 하한값입니다. 관측률과 함께 해석하세요.']:[])
+      ]};
+  }
+  function metadata(store,n){
+    return {counts:Object.fromEntries(TYPES.map(k=>[k,store.tables[k].size])),files:store.files,issues:store.issues,issueTotal:store.issueTotal,duplicates:store.duplicates,conflicts:store.conflicts,demo:store.demo,min:n.min,max:n.max,groups:n.groups,users:n.users,nodes:[...n.nodes.keys()].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}))};
+  }
+  function demo(){
+    const s=createStore();s.demo=true;
+    const base=time('2026-11-01T00:00:00'),ns=[['node01','cpu-small',64],['node02','cpu-small',64],['node06','cpu-large',128],['node07','cpu-large',128],['node10','gpu',64],['node11','gpu',64]];
+    const owners=['kim','lee','park','kang'],starts=new Map(),submit=new Map();
+    const summary={rows:0,duplicates:0,invalid:0,types:new Set()};
+    const ins=(type,r)=>insert(s,type,r,'내장 예제',0,summary);
+    for(let i=0;i<=7*48;i++){
+      if(i>=137&&i<=141)continue;
+      const timestamp=iso(base+i*1800000),t=base+i*1800000;
+      for(let ni=0;ni<ns.length;ni++){
+        const [node,partition,cpu_total]=ns[ni],hour=i%48/2,active=ni===3?i%96<18:hour>5&&hour<23||i%17<4,cycle=Math.floor(i/(ni%2?8:12)),job_id=String(12000+ni*1000+cycle),user=owners[(cycle+ni)%owners.length],cpu_alloc=active?cpu_total*(ni%2?.5:.75):0;
+        ins('node_cpu',{timestamp,node,node_type:ni>=4?'GPU':'CPU',partitions:partition,state:active?'MIXED':'IDLE',cpu_total,cpu_alloc,alloc_pct:cpu_alloc/cpu_total*100,cpu_load:cpu_alloc*.86,load_pct:cpu_alloc/cpu_total*86,mem_total_mb:262144,mem_alloc_mb:active?65536:0,mem_pct:active?25:0});
+        if(active){
+          if(!starts.has(job_id)){starts.set(job_id,t-9*60000);submit.set(job_id,t-(25+ni*13)*60000);}
+          ins('user_cpu',{timestamp,user,node,partition,cpus_alloc:cpu_alloc,mem_alloc_mb:65536,n_jobs:1,job_ids:job_id});
+          ins('queue_started',{timestamp,job_id,user,partition,submit_time:iso(submit.get(job_id)),start_time:iso(starts.get(job_id)),wait_sec:(starts.get(job_id)-submit.get(job_id))/1000,wait_min:(starts.get(job_id)-submit.get(job_id))/60000,alloc_cpus:cpu_alloc,n_nodes:1,state:'RUNNING'});
+        }
+        if(ni>=4)for(let gi=0;gi<2;gi++){
+          const util=active?35+((i*7+gi*21+ni*3)%64):0,mem=active?8000+gi*4000:0;
+          ins('gpu',{timestamp,node,gpu_index:String(gi),uuid:'GPU-example-'+ni+'-'+gi,gpu_name:'Example GPU 48 GB',gpu_util:util,mem_total_mb:49152,mem_used_mb:mem,mem_pct:mem/49152*100,temp_c:active?55+util*.25:35,power_w:active?140+util*2:28});
+          if(active)ins('gpu_user',{timestamp,node,gpu_index:String(gi),user,job_id,pid:String(5000+ni*100+gi),mem_used_mb:mem,proc_name:'simulation'});
+        }
+      }
+      for(let pi=0;pi<(i%48>17&&i%48<40?4:1);pi++){
+        const id=String(60000+Math.floor(i/10)*10+pi),user=owners[pi%4],sub=base+Math.floor(i/10)*10*1800000-3600000;
+        ins('queue_pending',{timestamp,job_id:id,user,partition:pi%2?'cpu-large':'gpu',qos:'normal',req_cpus:64,submit_time:iso(sub),wait_sec:(t-sub)/1000,wait_min:(t-sub)/60000,priority:1000+pi,reason:pi%2?'Priority':'Resources'});
+      }
+    }
+    s.files=[{name:'내장 예제 · 실제 로그가 아닙니다',rows:summary.rows,duplicates:0,invalid:0,types:TYPES.slice()}];return s;
+  }
+  const describe=(store,options={})=>metadata(store,normalize(store,{...defaults,...options}));
+  return {TYPES,SCHEMA,defaults,time,iso,num,list,fields,detect,createStore,loadText,loadFile,loadSession,session,normalize,describe,analyze,demo,mergeRanges,seconds,bucketStart,nextBucket};
+})();
+if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
+</script>
+<script>'use strict';
+(() => {
+  const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const f=(v,n=1)=>v===null||v===undefined||!Number.isFinite(Number(v))?'—':Number(v).toLocaleString('ko-KR',{maximumFractionDigits:n,minimumFractionDigits:0});
+  const titles={overview:['사용량 현황','노드, 사용자, 작업의 사용 흐름을 한눈에 확인하세요.'],nodes:['노드별 사용량','노드 간 할당량과 유휴 구간, 기록 공백을 비교하세요.'],groups:['노드 그룹별 사용량','직접 지정한 partition을 기준으로 자원 분배를 확인하세요.'],users:['사용자별 사용량','작업 시간과 코어·GPU 사용 규모를 함께 확인하세요.'],queue:['작업·대기열','관측된 제출·시작 이력과 대기 작업을 조회하세요.'],gpu:['GPU 사용량','장치별 사용률과 사용자별 GPU 점유를 구분해 확인하세요.'],data:['로그·검증','입력 파일, 지원 지표, 중복 기록과 오류를 확인하세요.']};
+  const typeNames={user_cpu:'사용자별 CPU 할당',queue_started:'시작 작업·대기시간',queue_pending:'대기열·요청 자원',node_cpu:'노드 CPU·메모리',gpu_user:'GPU 사용자·프로세스',gpu:'GPU 장치 사용량'};
+  let api,worker,workerURL,request=0,waiting=new Map(),localState;
+  const engineText=$('#hpc-engine').textContent;
+  const handler='let store=HPC.createStore(),last=null;\n'+(async function run(m,emit){
+    if(m.op==='import'){
+      if(m.replace||store.demo)store=HPC.createStore();
+      store.importedSettings=null;
+      for(let i=0;i<m.files.length;i++){
+        const file=m.files[i];
+        try{await HPC.loadFile(store,file,(read,size)=>emit({progress:true,text:file.name+' ('+(i+1)+'/'+m.files.length+')',pct:100*(i+read/Math.max(1,size))/m.files.length}));}
+        catch(e){store.issueTotal++;if(store.issues.length<300)store.issues.push({file:file.name,line:0,message:'파일 읽기 실패: '+e.message});store.files.push({name:file.name,rows:0,duplicates:0,invalid:1,types:[]});}
+      }
+      const restore=m.files.length===1?store.importedSettings:null;
+      return {meta:HPC.describe(store,restore?{...m.settings,...restore}:m.settings),restored:restore};
+    }
+    if(m.op==='demo'){store=HPC.demo();return HPC.describe(store,m.settings);}
+    if(m.op==='clear'){store=HPC.createStore();last=null;return true;}
+    if(m.op==='analyze'){last=HPC.analyze(store,m.options);return last.empty?last:{...last,jobs:last.jobs.slice(0,50),jobsTotal:last.jobs.length};}
+    if(m.op==='jobs'){if(!last||last.empty)return {rows:[],total:0};let rows=last.jobs;const q=String(m.query||'').toLowerCase();if(q)rows=rows.filter(r=>[r.id,r.user,r.partition,r.nodes,r.status,r.state].some(v=>String(v).toLowerCase().includes(q)));const dir=m.dir===-1?-1:1;rows=rows.slice().sort((a,b)=>{const x=a[m.key],y=b[m.key];if(x==null)return y==null?0:1;if(y==null)return -1;return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*dir;});return {rows:rows.slice(m.page*50,m.page*50+50),total:rows.length};}
+    if(m.op==='session')return JSON.stringify(HPC.session(store,m.settings));
+    if(m.op==='jobExport')return last?.jobs||[];
+    throw Error('알 수 없는 작업');
+  }).toString();
+  try{
+    workerURL=URL.createObjectURL(new Blob([engineText,'\n',handler,'\nself.onmessage=async e=>{const m=e.data;try{const data=await run(m,p=>postMessage({id:m.id,...p}));postMessage({id:m.id,data});}catch(err){postMessage({id:m.id,error:err.message});}};'],{type:'text/javascript'}));
+    worker=new Worker(workerURL);
+    worker.onmessage=e=>{const m=e.data;if(m.progress){$('#busy-text').textContent=m.text;$('#progress').value=m.pct;return;}const p=waiting.get(m.id);if(p){waiting.delete(m.id);m.error?p.reject(Error(m.error)):p.resolve(m.data);}};
+    worker.onerror=e=>{for(const p of waiting.values())p.reject(Error(e.message||'계산 작업 오류'));waiting.clear();setBusy(false);toast('처리 오류: 로그 형식과 파일 크기를 확인하세요.');};
+    api=(op,payload={})=>new Promise((resolve,reject)=>{const id=++request;waiting.set(id,{resolve,reject});worker.postMessage({id,op,...payload});});
+  }catch(e){
+    const runtime=new Function(engineText+'\n'+handler+'\nreturn {run,HPC};')();localState=runtime.HPC;
+    api=async(op,payload={})=>runtime.run({op,...payload},m=>{$('#busy-text').textContent=m.text;$('#progress').value=m.pct;});
+  }
+  const codec=localState||new Function(engineText+'\nreturn {iso:HPC.iso,time:HPC.time,defaults:HPC.defaults};')();
+  let saved={};try{saved=JSON.parse(localStorage.getItem('hpc-monitor-settings')||'{}');}catch{}
+  const S={tab:'overview',data:null,meta:null,loading:false,options:{...codec.defaults,...saved,groups:[],nodes:[],users:[],from:null,to:null},importMode:saved.importMode||'append',theme:saved.theme||'light',tablePages:{},tableSort:{},jobPage:0,jobQuery:'',jobSort:'start',jobDir:-1,jobRows:[],jobTotal:0};
+  if(![0,540].includes(+S.options.offset))S.options.offset=540;
+  S.options.interval=Math.max(1,Math.min(1440,+S.options.interval||30));
+  if(S.theme==='dark')document.body.classList.add('dark');
+  $('#theme-button').textContent=S.theme==='dark'?'라이트 모드':'다크 모드';
+  function persist(){try{localStorage.setItem('hpc-monitor-settings',JSON.stringify({offset:S.options.offset,interval:S.options.interval,startedMode:S.options.startedMode,nodeClock:S.options.nodeClock,denominator:S.options.denominator,bucket:S.options.bucket,importMode:S.importMode,theme:S.theme}));}catch{}}
+  function toast(message){const e=$('#toast');e.textContent=message;e.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.hidden=true,5500);}
+  function setBusy(on,text){S.loading=on;$('#busy').hidden=!on;$('#import-button').disabled=on;$('#settings-button').disabled=on;if(text)$('#busy-text').textContent=text;if(on)$('#progress').value=0;}
+  const stamp=t=>t===null||t===undefined?'—':codec.iso(t,+S.options.offset).replace('T',' ');
+  const shortDate=t=>{const s=codec.iso(t,+S.options.offset);return S.data?.settings.bucket==='hour'?s.slice(5,10)+' '+s.slice(11,16):s.slice(5,10);};
+  const C=()=>{const s=getComputedStyle(document.body);return {ink:s.getPropertyValue('--ink').trim(),muted:s.getPropertyValue('--muted').trim(),line:s.getPropertyValue('--line').trim(),accent:s.getPropertyValue('--accent').trim(),blue:s.getPropertyValue('--chart-blue').trim(),orange:s.getPropertyValue('--chart-orange').trim(),panel:s.getPropertyValue('--panel').trim()};};
+  function panel(id,title,sub,body,extra=''){return '<section class="panel"><div class="panel-head"><div><h2>'+esc(title)+'</h2><p>'+esc(sub)+'</p></div><div class="toolbar-inline">'+extra+(id?'<button class="panel-action" data-png="'+esc(id)+'" title="그래프를 PNG 이미지로 저장">PNG ↓</button>':'')+'</div></div><div class="panel-body">'+body+'</div></section>';}
+  const noChart=message=>'<div class="chart-empty">'+esc(message||'집계할 기록이 없습니다.')+'<span>로그 종류와 조회 조건을 확인하세요.</span></div>';
+  function card(label,value,unit,foot,icon,highlight=false){return '<article class="card'+(highlight?' highlight':'')+'"><div class="card-label">'+esc(label)+'<span class="tiny-icon" aria-hidden="true">'+icon+'</span></div><div class="card-value">'+esc(value)+(unit?'<small>'+esc(unit)+'</small>':'')+'</div><div class="card-foot">'+esc(foot)+'</div></article>';}
+  function legend(series){return '<div class="legend">'+series.map(s=>'<span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span>').join('')+'</div>';}
+  function bars(id,rows,series,unit='건'){
+    if(!rows.length||!rows.some(r=>series.some(s=>r[s.key]!==null&&r[s.key]!==undefined)))return noChart();
+    const c=C(),w=760,h=240,p={l:49,r:15,t:18,b:36},iw=w-p.l-p.r,ih=h-p.t-p.b;
+    const max=Math.max(1,...rows.flatMap(r=>series.map(s=>Number(r[s.key])||0)))*1.12;
+    let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+esc(series.map(s=>s.label).join(', '))+'"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
+    for(let i=0;i<=4;i++){const v=max*i/4,y=h-p.b-ih*i/4;svg+='<line x1="'+p.l+'" y1="'+y+'" x2="'+(w-p.r)+'" y2="'+y+'" stroke="'+c.line+'"/><text x="'+(p.l-9)+'" y="'+(y+3)+'" text-anchor="end" fill="'+c.muted+'" font-size="9">'+f(v,0)+'</text>';}
+    const cell=iw/rows.length,bw=Math.max(.8,Math.min(19,cell*.74/series.length)),every=Math.max(1,Math.ceil(rows.length/8));
+    rows.forEach((r,i)=>{
+      series.forEach((s,j)=>{const v=r[s.key];if(v===null||v===undefined)return;const bh=Math.max(0,Number(v))/max*ih,x=p.l+cell*i+cell/2+(j-series.length/2)*bw,y=h-p.b-bh;svg+='<rect x="'+x+'" y="'+y+'" width="'+Math.max(.7,bw-1)+'" height="'+bh+'" rx="1" fill="'+s.color+'"><title>'+esc(stamp(r.t)+' · '+s.label+': '+f(v,2)+' '+unit)+'</title></rect>';});
+      if(i%every===0)svg+='<text x="'+(p.l+cell*(i+.5))+'" y="'+(h-12)+'" text-anchor="middle" fill="'+c.muted+'" font-size="9">'+esc(shortDate(r.t))+'</text>';
+    });
+    svg+='<text x="'+p.l+'" y="10" fill="'+c.muted+'" font-size="9">'+esc(unit)+'</text></svg>';
+    return legend(series)+'<div class="chart">'+svg+'</div>';
+  }
+  function lines(id,rows,series,maxValue=100,unit='%'){
+    if(!rows.some(r=>series.some(s=>r[s.key]!==null&&r[s.key]!==undefined)))return noChart();
+    const c=C(),w=760,h=240,p={l:45,r:15,t:17,b:34},iw=w-p.l-p.r,ih=h-p.t-p.b;
+    const max=maxValue??Math.max(1,...rows.flatMap(r=>series.map(s=>Number(r[s.key])||0)))*1.12;
+    const x=i=>p.l+iw*(rows.length===1?.5:i/(rows.length-1)),y=v=>h-p.b-Number(v)/max*ih;
+    let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+esc(series.map(s=>s.label).join(', '))+'"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
+    for(let i=0;i<=4;i++){const yy=y(max*i/4);svg+='<line x1="'+p.l+'" y1="'+yy+'" x2="'+(w-p.r)+'" y2="'+yy+'" stroke="'+c.line+'"/><text x="'+(p.l-9)+'" y="'+(yy+3)+'" text-anchor="end" fill="'+c.muted+'" font-size="9">'+f(max*i/4,0)+'</text>';}
+    const every=Math.max(1,Math.ceil(rows.length/8));
+    rows.forEach((r,i)=>{if(i%every===0)svg+='<text x="'+x(i)+'" y="'+(h-11)+'" text-anchor="middle" fill="'+c.muted+'" font-size="9">'+esc(shortDate(r.t))+'</text>';});
+    for(const s of series){let points=[];const flush=()=>{if(points.length)svg+='<polyline points="'+points.join(' ')+'" stroke="'+s.color+'" stroke-width="2.2" stroke-linejoin="round" fill="none"/>';points=[];};
+      rows.forEach((r,i)=>{const v=r[s.key];if(v===null||v===undefined){flush();return;}points.push(x(i)+','+y(v));svg+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="'+(rows.length<45?2.5:1.6)+'" fill="'+s.color+'"><title>'+esc(stamp(r.t)+' · '+s.label+': '+f(v,2)+unit)+'</title></circle>';});flush();
+    }
+    svg+='</svg>';return legend(series)+'<div class="chart">'+svg+'</div>';
+  }
+  function horizontal(id,rows,key,labelKey,unit,filterKind){
+    const data=rows.filter(r=>r[key]!==null&&r[key]!==undefined).slice().sort((a,b)=>b[key]-a[key]).slice(0,12);
+    if(!data.length)return noChart();const c=C(),w=620,h=Math.max(235,data.length*31+28),left=118,right=76,iw=w-left-right,max=Math.max(1,...data.map(r=>r[key]));
+    let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="사용량 순위"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
+    data.forEach((r,i)=>{const y=14+i*(h-27)/data.length,bw=r[key]/max*iw,name=String(r[labelKey]);svg+='<g'+(filterKind?' data-pick="'+filterKind+'" data-value="'+esc(name)+'" tabindex="0" role="button" aria-label="'+esc(name)+' 필터 적용" style="cursor:pointer"':'')+'><text x="'+(left-10)+'" y="'+(y+14)+'" text-anchor="end" fill="'+c.ink+'" font-size="11">'+esc(name.length>16?name.slice(0,15)+'…':name)+'</text><rect x="'+left+'" y="'+y+'" width="'+iw+'" height="21" rx="3" fill="'+c.line+'" opacity=".45"/><rect x="'+left+'" y="'+y+'" width="'+Math.max(0,bw)+'" height="21" rx="3" fill="'+c.accent+'" opacity="'+(1-i*.035)+'"/><text x="'+(left+iw+9)+'" y="'+(y+14)+'" fill="'+c.ink+'" font-size="10">'+f(r[key],1)+'</text><title>'+esc(name+': '+f(r[key],2)+' '+unit)+'</title></g>';});
+    svg+='</svg>';return '<div class="chart">'+svg+'</div><div class="panel-note">상위 12개 · '+esc(unit)+(filterKind?' · 항목을 클릭해 필터링':'')+'</div>';
+  }
+  function heatmap(id,records,names,gpu=false){
+    if(!records.length||!names.length)return noChart();const c=C(),dates=S.data.series.map(r=>r.t),lookup=new Map(records.map(r=>[r.node+'|'+r.t,r])),left=gpu?160:116,cw=Math.max(19,Math.min(65,760/Math.max(1,dates.length))),rh=26,w=Math.max(600,left+dates.length*cw+20),h=45+names.length*rh;
+    let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+(gpu?'GPU':'노드')+'별 사용률 히트맵"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/><defs><pattern id="'+id+'-missing" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="5" height="5" fill="'+c.panel+'"/><path d="M0 5L5 0" stroke="'+c.line+'"/></pattern></defs>';
+    dates.forEach((t,i)=>{if(i%Math.max(1,Math.ceil(dates.length/12))===0)svg+='<text x="'+(left+i*cw+cw/2)+'" y="13" text-anchor="middle" fill="'+c.muted+'" font-size="9">'+esc(shortDate(t))+'</text>';});
+    names.forEach((name,ri)=>{const yy=28+ri*rh;svg+='<g data-pick="nodes" data-value="'+esc(gpu?name.split('/GPU')[0]:name)+'" tabindex="0" role="button" aria-label="'+esc(name)+' 필터 적용" style="cursor:pointer"><text x="'+(left-10)+'" y="'+(yy+14)+'" text-anchor="end" fill="'+c.ink+'" font-size="10">'+esc(name)+'</text></g>';
+      dates.forEach((t,i)=>{const r=lookup.get(name+'|'+t),v=r?.value,known=v!==null&&v!==undefined,clamp=Math.max(0,Math.min(100,v||0)),color=known?(clamp===0?c.line:'hsl(181, '+(40+clamp*.14)+'%, '+(88-clamp*.56)+'%)'):'url(#'+id+'-missing)';svg+='<rect x="'+(left+i*cw+1)+'" y="'+yy+'" width="'+(cw-3)+'" height="20" rx="3" fill="'+color+'"><title>'+esc(name+' · '+stamp(t)+' · '+(known?f(v,1)+'% · 관측률 '+f(r.coverage,1)+'%':'기록 없음'))+'</title></rect>';if(known&&r.coverage<99.9)svg+='<rect x="'+(left+i*cw+1)+'" y="'+yy+'" width="'+(cw-3)+'" height="2" fill="'+c.orange+'"/>';});
+    });
+    svg+='</svg>';return '<div class="legend"><span><i style="background:'+c.line+'"></i>0%</span><span><i style="background:hsl(181,54%,32%)"></i>100%</span><span>사선: 기록 없음</span><span>주황 표시: 일부 시간만 관측</span></div><div class="chart-scroll">'+svg+'</div>';
+  }
+  function timeline(){
+    const rows=S.data.jobs.filter(r=>r.ranges?.length).slice(0,35);if(!rows.length)return noChart('실행 구간을 추정할 작업 기록이 없습니다.');
+    const c=C(),w=1000,left=150,iw=w-left-25,h=46+rows.length*26,span=S.data.to-S.data.from;
+    let svg='<svg id="job-timeline" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="작업 실행 구간"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
+    for(let i=0;i<=6;i++){const x=left+iw*i/6;svg+='<line x1="'+x+'" y1="26" x2="'+x+'" y2="'+h+'" stroke="'+c.line+'"/><text x="'+x+'" y="13" fill="'+c.muted+'" font-size="9" text-anchor="middle">'+esc(shortDate(S.data.from+span*i/6))+'</text>';}
+    rows.forEach((r,i)=>{const y=31+i*26;svg+='<text x="'+(left-9)+'" y="'+(y+12)+'" text-anchor="end" fill="'+c.ink+'" font-size="10">'+esc(r.id+' · '+r.user)+'</text>';for(const [a,b]of r.ranges){const x=left+(a-S.data.from)/span*iw,bw=(b-a)/span*iw;svg+='<rect x="'+x+'" y="'+y+'" width="'+Math.max(1,bw)+'" height="17" rx="3" fill="'+c.accent+'" opacity=".8"><title>'+esc(r.id+' / '+r.user+' · '+stamp(a)+' ~ '+stamp(b)+' · 추정')+'</title></rect>';}});svg+='</svg>';return '<div class="chart-scroll">'+svg+'</div><div class="panel-note">최근 작업 최대 35개 · 공백 구간은 연결하지 않습니다.</div>';
+  }
+  const COLS={
+    nodes:[['name','노드','pick:nodes'],['groups','그룹'],['state','마지막 확인 state'],['cores','전체 코어','n0'],['jobs','실행 작업 수','n0'],['jobHours','누적 작업 시간 · h','n1'],['coreHours','코어 시간 · core·h','n1'],['busyHours','점유 시간 · h','n1'],['busyPct','작업 점유율','pct'],['allocPct','코어 할당률','pct'],['coverage','관측률','coverage'],['memPct','메모리 할당률','pct'],['loadPct','CPU load 비율','pct']],
+    groups:[['name','partition','pick:groups'],['nodeCount','노드 수','n0'],['jobs','실행 작업 수','n0'],['jobHours','누적 작업 시간 · h','n1'],['coreHours','코어 시간 · core·h','n1'],['busyHours','노드 점유 시간 · node·h','n1'],['busyPct','작업 점유율','pct'],['allocPct','코어 할당률','pct'],['coverage','관측률','coverage']],
+    users:[['name','사용자','pick:users'],['jobs','실행 작업 수','n0'],['submitted','제출 작업 수','n0'],['started','시작 작업 수','n0'],['jobHours','누적 작업 시간 · h','n1'],['coreHours','코어 시간 · core·h','n1'],['contribution','전체 코어 중 기여율','pct'],['activityPct','작업 활동시간 비율','pct'],['gpuHours','GPU 점유 · GPU·h','n1'],['gpuMemHours','GPU 메모리 · MB·h','n0']],
+    gpu:[['id','GPU'],['name','모델'],['util','평균 GPU 사용률','pct'],['memPct','평균 메모리 점유율','pct'],['tempMax','최대 온도 · °C','n1'],['power','평균 전력 · W','n1'],['energyWh','추정 에너지 · Wh','n1'],['coverage','관측률','coverage'],['users','관측 사용자']],
+    jobs:[['id','작업 ID'],['user','사용자','pick:users'],['partition','partition'],['nodes','노드'],['submit','제출 시각','time'],['start','시작 시각','time'],['end','종료 추정 시각','time'],['wallHours','작업 시간 · h','n2'],['waitMin','시작 전 대기 · min','n1'],['status','관측 상태','status'],['state','원본 state']],
+    pending:[['id','작업 ID'],['user','사용자','pick:users'],['partition','partition'],['cpus','요청 코어','n0'],['waitMin','대기 · min','n1'],['reason','대기 사유'],['priority','우선순위','n0']],
+    files:[['name','파일명'],['types','인식한 종류'],['rows','새 기록','n0'],['duplicates','중복','n0'],['invalid','제외한 행','n0']],
+    issues:[['file','파일'],['line','행','n0'],['message','확인 내용']],
+    daily:[['t','구간 시작','time'],['submitted','제출 작업 수','n0'],['started','시작 작업 수','n0'],['running','실행 작업 수','n0'],['jobHours','추정 작업 시간 · h','n2'],['coreHours','코어 시간 · core·h','n2'],['allocPct','코어 할당률','pct'],['busyPct','작업 점유율','pct'],['gpuUtil','GPU 사용률','pct'],['pendingMax','대기 작업 최대','n0']]
+  };
+  function cell(v,type){
+    if(v===undefined||v===null)return '—';
+    if(type==='time')return esc(stamp(v));
+    if(type==='pct')return f(v,1)+'%';
+    if(type==='coverage')return '<span class="coverage-bar"><i><b style="width:'+Math.max(0,Math.min(100,v))+'%"></b></i>'+f(v,1)+'%</span>';
+    if(type?.startsWith('n'))return f(v,+type.slice(1));
+    if(type==='status')return '<span class="status'+(v.includes('추정')?' warn':'')+'">'+esc(v)+'</span>';
+    if(type?.startsWith('pick:'))return '<button class="name-link" data-pick="'+type.slice(5)+'" data-value="'+esc(v)+'">'+esc(v)+'</button>';
+    return esc(Array.isArray(v)?v.join(', '):v);
+  }
+  function table(id,title,sub,rows,cols,job=false){
+    let list=rows.slice(),page=S.tablePages[id]||0;
+    const sort=S.tableSort[id];if(sort&&!job)list.sort((a,b)=>{const x=a[sort.key],y=b[sort.key];if(x==null)return y==null?0:1;if(y==null)return -1;return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*sort.dir;});
+    const total=job?S.jobTotal:list.length;
+    if(job)page=S.jobPage;else{page=Math.min(page,Math.max(0,Math.ceil(total/50)-1));S.tablePages[id]=page;list=list.slice(page*50,page*50+50);}
+    const search=job?'<div class="table-tools"><input id="job-search" placeholder="작업·사용자·노드 검색" aria-label="작업 검색" value="'+esc(S.jobQuery)+'"></div>':'';
+    const body='<div class="table-wrap"><table><thead><tr>'+cols.map(([k,label,type])=>'<th'+(type==='pct'||type==='coverage'||type?.startsWith('n')?' class="numeric"':'')+'><button data-sort="'+id+'" data-key="'+k+'" title="이 열로 정렬">'+esc(label)+' ↕</button></th>').join('')+'</tr></thead><tbody>'+(!list.length?'<tr><td colspan="'+cols.length+'" style="text-align:center;color:var(--muted);padding:35px">해당 조건의 기록이 없습니다.</td></tr>':list.map(r=>'<tr>'+cols.map(([k,l,type])=>'<td'+(type==='pct'||type==='coverage'||type?.startsWith('n')?' class="numeric"':'')+' title="'+esc(type==='time'?stamp(r[k]):Array.isArray(r[k])?r[k].join(', '):r[k]??'')+'">'+cell(r[k],type)+'</td>').join('')+'</tr>').join(''))+'</tbody></table></div><div class="pager"><span>'+f(total,0)+'개 중 '+(total?page*50+1:0)+'–'+Math.min(total,(page+1)*50)+'개'+(job?' · 작업 ID·제출 시각으로 중복 제거':'')+'</span><div><button data-page="'+id+'" data-delta="-1" '+(page===0?'disabled':'')+'>이전</button><button data-page="'+id+'" data-delta="1" '+((page+1)*50>=total?'disabled':'')+'>다음</button></div></div>';
+    return '<section class="panel" id="table-'+id+'"><div class="panel-head"><div><h2>'+esc(title)+'</h2><p>'+esc(sub)+'</p></div>'+search+'</div>'+body+'</section>';
+  }
+  function empty(){
+    return '<section class="empty-hero"><div class="empty-icon" aria-hidden="true">⇄</div><h2>로그에서 사용 흐름을 발견하세요.</h2><p>30분마다 기록한 HPC 로그를 선택하세요. 노드·partition·사용자별 사용량을 계산하고, CPU와 GPU의 이력을 연결합니다.</p><div><button class="button primary" data-import>로그 파일 선택</button><button class="button subtle" id="demo-button">예제로 둘러보기</button></div><div class="type-chips">'+Object.keys(typeNames).map(k=>'<span>'+k+'</span>').join('')+'</div><div class="empty-tip">여러 파일 동시 선택 · 탭 구분 · 외부 라이브러리 없이 오프라인 실행</div></section><div class="grid equal" style="margin-top:18px">'+panel(null,'6종 로그를 따로, 또는 함께','필요한 파일만 불러오세요.','<p class="explain">파일 이름이 바뀌어도 헤더로 종류를 판별합니다. 날짜별 로그를 추가하면 같은 기록은 중복 제거하고, 통합 JSON으로 저장해 다시 열 수 있습니다.</p>')+panel(null,'추정과 실제 기록을 구분','30분 간격의 한계를 표시합니다.','<p class="explain">작업이 다음 기록에서 사라지면 종료로 추정합니다. 기록 공백과 마지막 기록 이후는 구분하며, 종료만으로 성공·실패를 판단하지 않습니다.</p>')+'</div>';
+  }
+  function render(){
+    const d=S.data,c=C(),[title,sub]=titles[S.tab];$('#page-title').textContent=title;$('#page-subtitle').textContent=sub;$('#breadcrumb-current').textContent=$('[data-tab="'+S.tab+'"]').textContent.slice(1).trim();
+    $$('nav [data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===S.tab);b.setAttribute('aria-current',b.dataset.tab===S.tab?'page':'false');});
+    if(!d||d.empty){$('#view').innerHTML=S.tab==='data'&&S.meta?dataView():empty();if(d?.error){$('#notice').hidden=false;$('#notice').textContent=d.error;}return;}
+    const s=d.summary,rateFoot=S.options.denominator==='calendar'?'조회기간 전체 기준 · 미관측 제외한 하한':'관측시간 기준 · 가동시간 합집합';
+    let html='';
+    if(S.tab==='overview'){
+      html='<div class="cards">'+card('관측된 실행 작업',f(s.running,0),'건','같은 작업은 기간 안에서 한 번만','▤')+card('관측된 제출 작업',f(s.submitted,0),'건','submit_time 기준 · 중복 제거','↗')+card('코어 시간',f(s.coreHours),'core·h','할당 코어 수 × 기록 사이의 시간','◷',true)+card('작업 점유율 · 추정',f(s.busyPct),'%',rateFoot,'◔',true)+card('누적 작업 시간 · 추정',f(s.jobHours),'h','동시 실행 작업의 시간은 각각 합산','≋')+card('코어 할당률',f(s.allocPct),'%','선택한 노드 전체 코어 용량 기준','▦')+card('시작 전 대기 중앙값',f(s.waitMedian===null?null:s.waitMedian/60),'min','시작 작업 기준 · 대기 중 작업 제외','⌛')+card('기록 관측률',f(s.coverage),'%','선택 기간 중 노드 기록이 확인된 비율','⌁')+'</div>';
+      html+='<div class="grid">'+panel('daily-count','날짜별 작업 수','제출·시작은 해당 시각 기준 · 실행은 구간과 겹친 고유 작업',bars('daily-count',d.series,[{key:'submitted',label:'제출',color:c.blue},{key:'started',label:'시작',color:c.accent},{key:'running',label:'실행',color:c.orange}]))+panel('user-rank','사용자별 코어 시간','자원 규모를 반영한 사용량 · 상위 12명',horizontal('user-rank',d.users,'coreHours','name','core·h','users'))+'</div>';
+      html+='<div class="grid">'+panel('daily-rate','시간에 따른 할당과 점유','이 추이 그래프는 관측된 시간 기준',lines('daily-rate',d.series,[{key:'allocPct',label:'코어 할당률',color:c.accent},{key:'busyPct',label:'작업 점유율',color:c.blue}]))+panel('daily-time','누적 작업 시간','조회기간 안의 실행 구간만 합산 · 추정값',bars('daily-time',d.series,[{key:'jobHours',label:'작업 시간',color:c.accent}],'h'))+'</div>';
+      html+=panel('node-heat','노드별 코어 할당률','행: 노드 · 열: 기간 · 노드 이름을 클릭해 상세 조회',heatmap('node-heat',d.heat,d.nodes.map(r=>r.name)));
+    }else if(S.tab==='nodes'){
+      html='<div class="cards">'+card('선택한 노드',f(s.nodes,0),'개','업로드한 로그에 등장한 노드','▤')+card('코어 시간',f(s.coreHours),'core·h','노드별 할당량 합계','◷')+card('작업 점유율 · 추정',f(s.busyPct),'%',rateFoot,'◔')+card('기록 관측률',f(s.coverage),'%','미사용과 미관측을 구분','⌁')+'</div>';
+      html+=panel('node-heat','노드별 할당률 지도','부분 관측은 주황 표시 · 마지막 기록 이후는 연장하지 않음',heatmap('node-heat',d.heat,d.nodes.map(r=>r.name)));
+      html+='<div class="grid equal">'+panel('node-rank','노드별 코어 시간','사용량이 집중된 노드를 확인하세요.',horizontal('node-rank',d.nodes,'coreHours','name','core·h','nodes'))+panel('node-busy','노드별 작업 점유율','CPU 부하와는 구분된 작업 실행 시간 비율',horizontal('node-busy',d.nodes,'busyPct','name','%','nodes'))+'</div>';
+      html+=table('nodes','노드별 상세','메모리·CPU load는 관측시간 가중평균',d.nodes,COLS.nodes);
+    }else if(S.tab==='groups'){
+      html+='<div class="grid equal">'+panel('group-rank','partition별 코어 시간','그룹 간 자원 사용 규모 비교',horizontal('group-rank',d.groups,'coreHours','name','core·h','groups'))+panel('group-rate','partition별 코어 할당률','각 그룹의 전체 코어 용량을 분모로 계산',horizontal('group-rate',d.groups,'allocPct','name','%','groups'))+'</div>'+table('groups','노드 그룹별 상세','물리 노드가 여러 partition에 포함되면 그룹 합계는 중복될 수 있습니다.',d.groups,COLS.groups);
+    }else if(S.tab==='users'){
+      html+='<div class="grid equal">'+panel('user-rank','사용자별 코어 시간','CPU 사용량은 user_cpu 할당 기록 기준',horizontal('user-rank',d.users,'coreHours','name','core·h','users'))+panel('user-time','사용자별 누적 작업 시간','병렬·동시 작업은 각각 합산합니다.',horizontal('user-time',d.users,'jobHours','name','h','users'))+'</div>';
+      html+=table('users','사용자별 상세','GPU·h는 프로세스 관측 기반 · 공유 장치의 사용자 합계는 중복될 수 있음',d.users,COLS.users);
+      html+=panel('gpu-user-rank','사용자별 GPU 점유시간','같은 사용자·GPU의 여러 프로세스는 시간 중복을 제거',horizontal('gpu-user-rank',d.users,'gpuHours','name','GPU·h','users'));
+    }else if(S.tab==='queue'){
+      html='<div class="cards">'+card('관측된 제출 작업',f(s.submitted,0),'건','제출 시각 기준','↗')+card('관측된 시작 작업',f(s.started,0),'건','start_time 기준','▷')+card('종료 추정 작업',f(s.inferredEnded,0),'건','성공·실패 여부는 미상','◷')+card('마지막 확인 대기열',f(s.pending,0),'건',d.lastQueue!==null?stamp(d.lastQueue):'대기열 기록 없음','≋')+'</div>';
+      html+='<div class="grid equal">'+panel('pending-trend','구간별 대기 작업 최대','반복 기록을 더하지 않고 시점별 고유 작업 수로 계산',bars('pending-trend',d.series,[{key:'pendingMax',label:'대기 작업 최대',color:c.orange}]))+panel('wait-trend','시작 전 대기시간 중앙값','해당 구간에서 시작한 작업 기준',lines('wait-trend',d.series.map(r=>({...r,waitMinutes:r.waitMedian===null?null:r.waitMedian/60})),[{key:'waitMinutes',label:'대기 중앙값',color:c.blue}],null,' min'))+'</div>';
+      html+=panel('pending-reasons','대기 사유','조회 종료 시점의 마지막 확인 대기열',horizontal('pending-reasons',d.reasons,'count','name','건',null));
+      html+=table('pending','대기 작업 상세','개별 노드가 배정되기 전의 작업은 노드 필터 조회에서 제외합니다.',d.pendingRows,COLS.pending);
+      html+=panel('job-timeline','작업 실행 타임라인','작업 종료는 다음 스냅샷에서 사라진 시각으로 추정',timeline());
+      html+='<div id="job-table-slot">'+table('jobs','작업 이력','정상 완료·실패 건수는 현재 로그만으로 확정할 수 없습니다.',S.jobRows,COLS.jobs,true)+'</div>';
+    }else if(S.tab==='gpu'){
+      html+='<div class="cards">'+card('관측 GPU',f(d.gpu.length,0),'개','노드와 GPU index 조합 기준','▧')+card('평균 GPU 사용률',f(s.gpuUtil),'%','장치 전체 값 · 관측시간 가중평균','◔')+card('최대 관측 온도',f(d.gpu.some(r=>r.tempMax!==null)?Math.max(...d.gpu.filter(r=>r.tempMax!==null).map(r=>r.tempMax)):null),'°C','기간 내 기록된 최댓값','♨')+card('관측 사용자',f(d.users.filter(r=>r.gpuHours>0).length,0),'명','gpu_user 프로세스 기록 기준','♙')+'</div>';
+      if(S.options.users.length)html+='<div class="notice">아래 GPU 사용률·전력·온도는 선택 사용자가 사용한 장치 전체 값입니다. 공유 GPU의 사용자별 계산 사용률을 뜻하지 않습니다.</div>';
+      html+=panel('gpu-heat','GPU별 사용률','gpu 로그의 실제 측정값 · 시간 가중평균',heatmap('gpu-heat',d.gpuHeat,d.gpu.map(r=>r.id),true));
+      html+='<div class="grid equal">'+panel('gpu-trend','GPU 사용률 추이','선택한 장치의 관측시간 가중평균',lines('gpu-trend',d.series,[{key:'gpuUtil',label:'장치 사용률',color:c.accent}]))+panel('gpu-user-rank','사용자별 GPU 점유시간','프로세스가 관측된 시간 · 계산 사용률과 구분',horizontal('gpu-user-rank',d.users,'gpuHours','name','GPU·h','users'))+'</div>';
+      html+=table('gpu','GPU 장치별 상세','전력으로부터 관측 구간의 에너지를 추정합니다.',d.gpu,COLS.gpu);
+    }else html=dataView();
+    $('#view').innerHTML=html;
+    updateMethod();if(S.tab==='queue'&&(S.jobPage||S.jobQuery||S.jobSort!=='start'||S.jobDir!==-1))refreshJobs();
+  }
+  function dataView(){
+    const meta=S.meta,types=Object.keys(typeNames);
+    let html='<div class="data-types">'+types.map(k=>'<div class="type-card"><strong>'+k+'</strong><span>'+f(meta.counts[k],0)+'행</span><p>'+typeNames[k]+'</p></div>').join('')+'</div>';
+    html+=panel(null,'입력 데이터 관리','파일을 추가하거나 현재 로그 전체를 통합 JSON으로 저장할 수 있습니다.','<div class="toolbar-inline" style="padding:6px 0 10px;flex-wrap:wrap"><button class="button primary" data-import>로그 추가</button><button class="button subtle" data-session>통합 로그 저장</button><button class="button subtle" id="demo-button">예제로 교체</button><button class="button subtle text-danger" id="clear-data">데이터 비우기</button></div><p class="help">중복 '+f(meta.duplicates,0)+'행 · 서로 다른 값으로 덮어쓴 기록 '+f(meta.conflicts,0)+'행 · 확인 사항 '+f(meta.issueTotal,0)+'개. 데이터는 자동 저장하지 않습니다. 다음에 다시 열려면 통합 JSON을 저장하세요.</p>');
+    html+=table('files','불러온 파일','같은 종류의 날짜별 파일과 6종 로그를 함께 선택할 수 있습니다.',meta.files,COLS.files);
+    html+=table('issues','데이터 검증 결과','최대 300개 표시 · 잘못된 시각이나 식별자가 있는 행은 제외합니다.',meta.issues,COLS.issues);
+    html+=panel(null,'지원하는 집계와 한계','입력된 로그에 따라 계산 가능한 지표를 표시합니다.','<div class="explain"><ul><li><strong>user_cpu</strong>: 사용자별 코어 시간과 job_ids 기반 실행 구간.</li><li><strong>node_cpu</strong>: 전체 코어 용량, 노드 점유율, CPU load·메모리 할당률.</li><li><strong>queue_started / queue_pending</strong>: 관측된 제출·시작 작업, 대기시간, 대기 사유.</li><li><strong>gpu</strong>: 장치 사용률·메모리·온도·전력.</li><li><strong>gpu_user</strong>: 사용자별 GPU 점유와 GPU 메모리 사용량. 사용자별 계산 사용률은 계산하지 않습니다.</li><li>서로 다른 종류의 헤더를 이어 붙인 탭 구분 파일도 읽을 수 있습니다. 각 구간 앞에 해당 헤더가 있어야 합니다.</li><li>노드 목록은 업로드한 로그에 등장한 노드 기준입니다. 어떤 로그에도 없는 노드는 전체 용량에 포함할 수 없습니다.</li></ul></div>');
+    return html;
+  }
+  function updateMethod(){
+    const d=S.data;
+    $('#method-content').innerHTML='<p><strong>시간대:</strong> '+(S.options.offset===540?'한국시간 UTC+09:00':'UTC')+' · <strong>기록 주기:</strong> '+esc(S.options.interval)+'분</p><p><strong>조회 구간:</strong> 시작 시각 이상, 종료 시각 미만. 현황 상태는 종료 시각의 기록까지 확인합니다.</p><ul>'+(d?.notices||[]).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul><p><strong>코어 시간:</strong> 할당 코어 수 × 기록 간격.<br><strong>작업 점유율:</strong> 작업이 하나 이상 실행된 시간 ÷ 기준 시간.<br><strong>코어 할당률:</strong> 할당 코어 시간 ÷ 전체 코어 시간.<br><strong>사용자 작업 시간:</strong> 각 작업의 실행 구간을 합산. 동시 실행은 각각 합산.<br><strong>사용자 활동시간:</strong> 작업 실행 구간의 합집합 ÷ 조회기간.<br><strong>관측률:</strong> 기록이 확인된 노드 시간 ÷ 선택 노드의 조회기간 전체.</p><p>정확한 종료 시각과 성공 여부는 로그에 없습니다. 작업이 사라진 시각은 종료 추정이며 일시정지·재시작·수집 실패와 완전히 구분되지 않습니다.</p>';
+  }
+  function fillFilters(meta,reset=false){
+    for(const kind of ['groups','nodes','users']){
+      if(reset)S.options[kind]=[];
+      S.options[kind]=S.options[kind].filter(v=>meta[kind].includes(v));
+      const root=$('#filter-'+kind),choices=root.querySelector('.choices');
+      choices.innerHTML='<button class="choice-clear" data-clear="'+kind+'">전체 선택으로 초기화</button>'+meta[kind].map(v=>'<label><input type="checkbox" data-filter="'+kind+'" value="'+esc(v)+'" '+(S.options[kind].includes(v)?'checked':'')+'>'+esc(v)+'</label>').join('');
+      root.querySelector('summary').textContent=S.options[kind].length===0?'전체 '+({groups:'그룹',nodes:'노드',users:'사용자'}[kind]):S.options[kind].length===1?S.options[kind][0]:S.options[kind].length+'개 선택';
+    }
+  }
+  function setRange(meta){
+    if(meta.min!==null){S.options.from=meta.min;S.options.to=meta.max;$('#from').value=codec.iso(meta.min,+S.options.offset).slice(0,16);$('#to').value=codec.iso(meta.max,+S.options.offset).slice(0,16);}
+  }
+  let analysisGeneration=0;
+  async function analyze(){
+    if(!S.meta)return;
+    const generation=++analysisGeneration;
+    S.options.from=codec.time($('#from').value,+S.options.offset);S.options.to=codec.time($('#to').value,+S.options.offset);S.options.bucket=$('#bucket').value;
+    if(S.options.from===null||S.options.to===null||S.options.to<=S.options.from){setBusy(false);$('#notice').hidden=false;$('#notice').className='notice error';$('#notice').textContent='시작·종료 시각을 확인하세요. 집계에는 서로 다른 시각의 기록이 필요합니다.';return;}
+    setBusy(true,'사용량을 집계하고 있습니다…');
+    try{
+      const d=await api('analyze',{options:S.options});if(generation!==analysisGeneration)return;
+      S.data=d;S.meta=d.meta;S.tablePages={};S.jobPage=0;S.jobRows=d.jobs||[];S.jobTotal=d.jobsTotal||0;
+      if(d.settings?.bucket!==S.options.bucket){S.options.bucket=d.settings.bucket;$('#bucket').value=d.settings.bucket;toast('긴 조회기간에 맞춰 표시 간격을 조정했습니다.');}
+      const counts=Object.values(S.meta.counts).reduce((a,b)=>a+b,0);
+      $('#dataset-badge').textContent=S.meta.demo?'예제 데이터 · 실제 로그 아님':f(counts,0)+'개 기록';
+      $('#dataset-badge').className='badge '+(S.meta.demo?'demo':'ready');
+      const tz=+S.options.offset===540?'한국시간 · UTC+09:00':'UTC';
+      $('#range-caption').innerHTML='<span>'+esc(stamp(S.options.from))+' — '+esc(stamp(S.options.to))+' · '+tz+'</span><span>'+S.options.interval+'분 기록 · '+Object.values(S.meta.counts).filter(v=>v>0).length+'/6종 · 마지막 기록 '+esc(stamp(S.meta.max))+'</span>';
+      const notes=[];
+      if(S.meta.demo)notes.push('현재 화면은 내장 예제입니다. 실제 로그를 불러오면 예제 데이터는 교체됩니다.');
+      if(d.summary?.coverage!==null&&d.summary?.coverage<99.5)notes.push('기록 관측률 '+f(d.summary.coverage)+'%: 기록 공백은 유휴시간과 구분합니다.');
+      if(S.meta.issueTotal)notes.push('데이터 확인 사항 '+f(S.meta.issueTotal,0)+'개 — 로그·검증 화면을 확인하세요.');
+      if(d.error)notes.push(d.error);
+      $('#notice').hidden=notes.length===0;$('#notice').className='notice';$('#notice').textContent=notes.join(' ');
+      render();
+    }catch(e){toast(e.message);}finally{if(generation===analysisGeneration)setBusy(false);}
+  }
+  async function importFiles(files){
+    if(!files.length||S.loading)return;
+    setBusy(true,'로그 파일을 읽고 있습니다…');
+    try{
+      const res=await api('import',{files:[...files],replace:S.importMode==='replace',settings:S.options});
+      if(res.restored){
+        const r=res.restored;
+        if([0,540].includes(+r.offset))S.options.offset=+r.offset;
+        if(+r.interval>=1&&+r.interval<=1440)S.options.interval=+r.interval;
+        if(['snapshot','event'].includes(r.startedMode))S.options.startedMode=r.startedMode;
+        if(typeof r.nodeClock==='boolean')S.options.nodeClock=r.nodeClock;
+        if(['observed','calendar'].includes(r.denominator))S.options.denominator=r.denominator;
+        if(['hour','day','week','month'].includes(r.bucket)){$('#bucket').value=r.bucket;S.options.bucket=r.bucket;}
+        persist();
+      }
+      S.meta=res.meta;S.data=null;setRange(S.meta);fillFilters(S.meta,true);
+      const count=Object.values(S.meta.counts).reduce((a,b)=>a+b,0);
+      $('#dataset-badge').textContent=S.meta.demo?'예제 데이터 · 실제 로그 아님':f(count,0)+'개 기록';$('#dataset-badge').className='badge '+(S.meta.demo?'demo':'ready');
+      if(S.meta.min===null){S.tab='data';render();toast('읽을 수 있는 기록이 없습니다. 헤더와 탭 구분을 확인하세요.');}
+      else if(S.meta.min===S.meta.max){S.data={empty:true,meta:S.meta,error:'현재 기록 시각이 하나뿐입니다. 시간·사용률 집계에는 다음 시각의 로그를 추가하세요.'};S.tab='data';render();}
+      else await analyze();
+    }catch(e){toast('불러오기 실패: '+e.message);}finally{setBusy(false);$('#file-input').value='';}
+  }
+  async function loadDemo(){
+    if(S.loading)return;
+    setBusy(true,'예제 데이터를 준비하고 있습니다…');
+    try{S.meta=await api('demo',{settings:S.options});setRange(S.meta);fillFilters(S.meta,true);S.options.bucket='day';$('#bucket').value='day';await analyze();}
+    catch(e){toast(e.message);}finally{setBusy(false);}
+  }
+  async function refreshJobs(){
+    if(!S.data||S.data.empty)return;
+    const res=await api('jobs',{query:S.jobQuery,page:S.jobPage,key:S.jobSort,dir:S.jobDir});
+    S.jobRows=res.rows;S.jobTotal=res.total;
+    const slot=$('#job-table-slot');if(slot){const focused=document.activeElement?.id==='job-search',pos=$('#job-search')?.selectionStart;slot.innerHTML=table('jobs','작업 이력','정상 완료·실패 건수는 현재 로그만으로 확정할 수 없습니다.',S.jobRows,COLS.jobs,true);if(focused){$('#job-search')?.focus();$('#job-search')?.setSelectionRange(pos,pos);}}
+  }
+  function download(name,blob){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),15000);}
+  function csv(rows,cols){
+    const q=v=>{if(v===null||v===undefined)return '';let s=String(v);if(typeof v==='string'&&/^\s*[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};
+    return '\uFEFF'+[cols.map(c=>q(c[1])).join(','),...rows.map(r=>cols.map(([key,,type])=>q(type==='time'?(r[key]==null?'':stamp(r[key])):Array.isArray(r[key])?r[key].join(', '):r[key])).join(','))].join('\r\n');
+  }
+  async function exportCSV(){
+    if(!S.data||S.data.empty)return toast('먼저 로그를 불러오세요.');
+    const tableKey={overview:'daily',nodes:'nodes',groups:'groups',users:'users',queue:'jobs',gpu:'gpu',data:'files'}[S.tab];
+    let rows=tableKey==='daily'?S.data.series:tableKey==='files'?S.meta.files:tableKey==='jobs'?await api('jobExport'):S.data[tableKey];
+    if(tableKey==='jobs'&&S.jobQuery){const q=S.jobQuery.toLowerCase();rows=rows.filter(r=>[r.id,r.user,r.partition,r.nodes,r.status,r.state].some(v=>String(v).toLowerCase().includes(q)));}
+    download('HPC_'+tableKey+'_'+codec.iso(Date.now(),540).slice(0,10)+'.csv',new Blob([csv(rows,COLS[tableKey])],{type:'text/csv;charset=utf-8'}));toast('현재 조회 조건의 집계를 저장했습니다.');
+  }
+  async function exportSession(){
+    if(!S.meta)return toast('먼저 로그를 불러오세요.');
+    const text=await api('session',{settings:{...S.options,importMode:S.importMode}});
+    download('HPC_logs_'+codec.iso(Date.now(),540).slice(0,10)+'.json',new Blob([text],{type:'application/json'}));toast('6종 로그를 통합 JSON으로 저장했습니다.');
+  }
+  async function exportPNG(id){
+    const svg=document.getElementById(id);if(!svg)return;
+    const copy=svg.cloneNode(true);copy.setAttribute('xmlns','http://www.w3.org/2000/svg');copy.setAttribute('font-family','Arial, Malgun Gothic, sans-serif');
+    const vb=svg.viewBox.baseVal,scale=Math.min(2,4096/Math.max(vb.width,vb.height)),w=Math.round(vb.width*scale),h=Math.round(vb.height*scale);copy.setAttribute('width',vb.width);copy.setAttribute('height',vb.height);
+    const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();
+    try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');ctx.fillStyle=C().panel;ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(blob)download('HPC_'+id+'.png',blob);else throw Error();}
+    catch(e){toast('이미지를 저장하지 못했습니다.');}finally{URL.revokeObjectURL(url);}
+  }
+  function settings(){
+    $('#setting-offset').value=S.options.offset;$('#setting-interval').value=S.options.interval;$('#setting-started').value=S.options.startedMode;$('#setting-clock').checked=S.options.nodeClock;$('#setting-denominator').value=S.options.denominator;$('#setting-import').value=S.importMode;$('#settings-dialog').showModal();
+  }
+  let debounce;function schedule(){clearTimeout(debounce);debounce=setTimeout(analyze,180);}
+  document.addEventListener('click',async e=>{
+    const target=e.target.closest('button, [data-pick]');if(!target)return;
+    if(target.dataset.tab){S.tab=target.dataset.tab;render();return;}
+    if(target.dataset.close){document.getElementById(target.dataset.close).close();return;}
+    if(target.hasAttribute('data-import')){$('#file-input').click();return;}
+    if(target.id==='demo-button'){await loadDemo();return;}
+    if(target.hasAttribute('data-session')){await exportSession();return;}
+    if(target.dataset.png){await exportPNG(target.dataset.png);return;}
+    if(target.dataset.clear){S.options[target.dataset.clear]=[];fillFilters(S.meta);schedule();return;}
+    if(target.dataset.pick){const kind=target.dataset.pick;S.options[kind]=[target.dataset.value];if(S.meta)fillFilters(S.meta);if(kind==='nodes')S.tab='nodes';else if(kind==='users')S.tab='users';else if(kind==='groups')S.tab='groups';schedule();return;}
+    if(target.dataset.page){const id=target.dataset.page,delta=+target.dataset.delta;if(id==='jobs'){S.jobPage+=delta;await refreshJobs();}else{S.tablePages[id]=(S.tablePages[id]||0)+delta;render();}return;}
+    if(target.dataset.sort){const id=target.dataset.sort,key=target.dataset.key;if(id==='jobs'){S.jobDir=S.jobSort===key?-S.jobDir:1;S.jobSort=key;S.jobPage=0;await refreshJobs();}else{const old=S.tableSort[id];S.tableSort[id]={key,dir:old?.key===key?-old.dir:1};S.tablePages[id]=0;render();}return;}
+    if(target.id==='clear-data'){await api('clear');S.meta=null;S.data=null;$('#dataset-badge').className='badge';$('#dataset-badge').textContent='데이터 없음';$('#from').value='';$('#to').value='';$('#notice').hidden=true;$('#range-caption').textContent='탭으로 구분된 TSV · LOG · TXT 파일을 지원합니다.';for(const k of ['groups','nodes','users']){$('#filter-'+k+' .choices').innerHTML='';$('#filter-'+k+' summary').textContent='전체 '+{groups:'그룹',nodes:'노드',users:'사용자'}[k];S.options[k]=[];}render();toast('현재 데이터가 비워졌습니다.');}
+  });
+  document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-pick][role=button]')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
+  document.addEventListener('change',e=>{const el=e.target;if(el.dataset.filter){const kind=el.dataset.filter;S.options[kind]=$$('#filter-'+kind+' input:checked').map(x=>x.value);fillFilters(S.meta);schedule();}else if(['from','to','bucket'].includes(el.id))schedule();});
+  document.addEventListener('input',e=>{if(e.target.id==='job-search'){S.jobQuery=e.target.value;S.jobPage=0;clearTimeout(debounce);debounce=setTimeout(refreshJobs,170);}});
+  document.addEventListener('click',e=>{$$('.export-menu[open], .multi[open]').forEach(d=>{if(!d.contains(e.target))d.open=false;});});
+  $('#import-button').onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>importFiles(e.target.files);
+  $('#settings-button').onclick=settings;
+  $('#reset-filters').onclick=()=>{if(!S.meta)return;setRange(S.meta);fillFilters(S.meta,true);schedule();};
+  $('#export-csv').onclick=()=>{exportCSV();$('.export-menu').open=false;};
+  $('#export-session').onclick=()=>{exportSession();$('.export-menu').open=false;};
+  $('#method-button').onclick=()=>{updateMethod();$('#method-dialog').showModal();};
+  $('#theme-button').onclick=()=>{S.theme=S.theme==='dark'?'light':'dark';document.body.classList.toggle('dark',S.theme==='dark');$('#theme-button').textContent=S.theme==='dark'?'라이트 모드':'다크 모드';persist();render();};
+  $('#settings-form').onsubmit=async e=>{
+    e.preventDefault();const oldOffset=+S.options.offset;
+    S.options.offset=+$('#setting-offset').value;S.options.interval=+$('#setting-interval').value;S.options.startedMode=$('#setting-started').value;S.options.nodeClock=$('#setting-clock').checked;S.options.denominator=$('#setting-denominator').value;S.importMode=$('#setting-import').value;persist();$('#settings-dialog').close();
+    if(S.meta){if(oldOffset!==S.options.offset){S.options.from=null;S.options.to=null;setBusy(true,'로그 시간대를 적용하고 있습니다…');try{const d=await api('analyze',{options:{...S.options,from:null,to:null}});S.meta=d.meta;setRange(S.meta);}finally{setBusy(false);}}await analyze();}
+    else toast('설정을 저장했습니다.');
+  };
+  let drag=0;
+  document.addEventListener('dragenter',e=>{if(e.dataTransfer?.types.includes('Files')){e.preventDefault();drag++;$('#drop-overlay').hidden=false;}});
+  document.addEventListener('dragleave',()=>{drag--;if(drag<=0)$('#drop-overlay').hidden=true;});
+  document.addEventListener('dragover',e=>{if(e.dataTransfer?.types.includes('Files'))e.preventDefault();});
+  document.addEventListener('drop',e=>{e.preventDefault();drag=0;$('#drop-overlay').hidden=true;importFiles(e.dataTransfer.files);});
+  window.addEventListener('beforeunload',()=>{if(worker)worker.terminate();if(workerURL)URL.revokeObjectURL(workerURL);});
+  render();
+})();
+</script>
+</body>
+</html>

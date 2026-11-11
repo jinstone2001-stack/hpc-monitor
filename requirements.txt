@@ -1,0 +1,2 @@
+# X11 GUI only. The Python web GUI and accounting core use the standard library.
+matplotlib>=3.7,<4
