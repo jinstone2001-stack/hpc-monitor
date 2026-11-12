@@ -217,6 +217,10 @@ Matplotlib가 설치되어 있으면 각 그래프를 화면 없는 환경에서
 - `HPC_Usage_Monitor.html`: 독립 실행 HTML 및 Python 웹 화면 자산.
 - `tests/`: 경계 조건, HTTP 입출력, 그래프 렌더링 및 Python/JS 결과 비교.
 
-현재 배포: `main` (**1.3.0**), 1.0 보존 브랜치: [`ver-1.0`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.0).
+현재 배포: `main` (**1.3.0**).
+이전 버전: [`ver-1.1`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.1), [`ver-1.0`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.0).
+
+새 버전을 배포할 때는 기존 버전의 마지막 배포 커밋을 먼저 `ver-X.Y` 브랜치로 보존한 뒤 신규 버전을 `main`에 올립니다.
+기존 보존 브랜치는 덮어쓰거나 삭제하지 않습니다. 저장소 작업 지침은 [AGENTS.md](AGENTS.md)에 기록합니다.
 구현 참고: [Python Tkinter](https://docs.python.org/3/library/tkinter.html),
 [Matplotlib backends](https://matplotlib.org/stable/users/explain/figure/backends.html).
