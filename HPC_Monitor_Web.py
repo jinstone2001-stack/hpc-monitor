@@ -15,6 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, demo_store, natural_key, options_from
+from hpc_monitor_files import directory_listing
 
 ASSET = Path(__file__).with_name("HPC_Usage_Monitor.html")
 TRANSPORT = r"""
@@ -46,6 +47,67 @@ TRANSPORT = r"""
   };
 """
 
+DIRECTORY_DIALOG = r"""
+<style>
+#server-files{width:850px;max-width:94vw}.file-path{display:flex;gap:8px;margin:15px 0}.file-path input{flex:1;min-width:0}
+#server-file-list{height:330px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--line);border-radius:6px}
+.file-row{display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.file-row:hover{background:var(--panel-soft)}.file-row .file-name{flex:1;min-width:0}.file-kind{font-size:11px;color:var(--muted);white-space:nowrap}
+.file-icon{font-size:18px;flex-shrink:0}.file-icon.folder{color:#c28c27}.file-icon.log{color:#4d92d2}.file-icon.session{color:#319c84}
+#server-file-error{color:var(--error);min-height:20px;font-size:12px}#server-file-count{font-size:12px;color:var(--muted)}
+</style>
+<dialog id="server-files" aria-labelledby="server-files-title">
+  <div class="dialog-title"><h2 id="server-files-title">서버 폴더에서 로그 불러오기</h2><button data-close="server-files" aria-label="파일 선택 닫기">×</button></div>
+  <p>Python 서버가 실행 중인 컴퓨터의 폴더입니다. PC 파일은 아래 버튼으로 선택하세요.</p>
+  <form id="server-path-form" class="file-path"><button type="button" id="server-up" class="button subtle" aria-label="상위 폴더로 이동">↑ 상위 폴더</button><input id="server-path" aria-label="서버 폴더 경로" placeholder="/path/to/logs 또는 ~/logs" autocomplete="off"><button class="button subtle" type="submit">이동</button></form>
+  <div id="server-file-list" aria-label="폴더와 파일 목록" aria-busy="false"></div>
+  <div id="server-file-error" role="alert"></div><div id="server-file-count" aria-live="polite">파일을 선택하세요.</div>
+  <div class="dialog-actions"><button class="button subtle" id="local-file-button">내 PC 파일 선택</button><button class="button subtle" data-close="server-files">취소</button><button class="button primary" id="server-import" disabled>선택한 파일 불러오기</button></div>
+</dialog>
+"""
+
+DIRECTORY_SCRIPT = r"""
+  let serverDirectory=null,serverBrowseGeneration=0;
+  const fileKinds={folder:'폴더',log:'로그 파일',session:'통합 JSON',other:'파일'};
+  async function browseServer(path){
+    const generation=++serverBrowseGeneration,list=$('#server-file-list');
+    $('#server-file-error').textContent='';list.setAttribute('aria-busy','true');
+    $('#server-import').disabled=true;$('#server-up').disabled=true;
+    try{
+      const listing=await api('browse',{path,base:serverDirectory?.path});
+      if(generation!==serverBrowseGeneration)return;
+      serverDirectory=listing;$('#server-path').value=listing.path;
+      list.innerHTML=listing.entries.map((row,i)=>{
+        const icon='<span class="file-icon '+row.kind+'" aria-hidden="true">'+(row.directory?'▸':'≡')+'</span>';
+        const body=icon+'<span class="file-name">'+esc(row.name)+'</span><span class="file-kind">'+fileKinds[row.kind]+'</span>';
+        return row.directory?'<button class="file-row" data-server-folder="'+i+'">'+body+'</button>':'<label class="file-row"><input type="checkbox" data-server-file="'+i+'">'+body+'</label>';
+      }).join('')||'<p style="padding:15px">빈 폴더입니다.</p>';
+      list.scrollTop=0;$('#server-file-count').textContent='파일을 선택하세요.';
+    }catch(error){if(generation===serverBrowseGeneration){$('#server-file-error').textContent=error.message;if(serverDirectory)$('#server-path').value=serverDirectory.path;}}
+    finally{if(generation===serverBrowseGeneration){list.setAttribute('aria-busy','false');$('#server-up').disabled=!serverDirectory||serverDirectory.path===serverDirectory.parent;updateServerSelection();}}
+  }
+  function updateServerSelection(){
+    const count=$$('#server-file-list input:checked').length;
+    $('#server-import').disabled=!count||$('#server-file-list').getAttribute('aria-busy')==='true';
+    $('#server-file-count').textContent=count?count+'개 파일 선택':'파일을 선택하세요.';
+  }
+  function openServerFiles(){
+    if(S.loading)return;
+    $('#server-files').showModal();browseServer(serverDirectory?.path||'.');
+  }
+  $('#server-path-form').onsubmit=event=>{event.preventDefault();browseServer($('#server-path').value);};
+  $('#server-up').onclick=()=>{if(serverDirectory)browseServer(serverDirectory.parent);};
+  $('#server-file-list').onclick=event=>{const target=event.target.closest('[data-server-folder]');if(target&&serverDirectory)browseServer(serverDirectory.entries[+target.dataset.serverFolder].path);};
+  $('#server-file-list').onchange=updateServerSelection;
+  $('#local-file-button').onclick=()=>{$('#server-files').close();$('#file-input').click();};
+  $('#server-import').onclick=async()=>{
+    if(!serverDirectory)return;
+    const paths=$$('#server-file-list input:checked').map(input=>serverDirectory.entries[+input.dataset.serverFile].path);
+    if(!paths.length)return;
+    $('#server-files').close();await importFiles(paths,'importPaths');
+  };
+"""
+
 
 def web_page(token):
     text = ASSET.read_text(encoding="utf-8")
@@ -54,6 +116,8 @@ def web_page(token):
     first = text.index("  let api,worker,workerURL,request=0,waiting=new Map(),localState;")
     last = text.index("  let saved={};", first)
     text = text[:first] + TRANSPORT.replace("__SERVER_TOKEN__", json.dumps(token)) + text[last:]
+    text = text.replace('<input type="file" id="file-input" multiple hidden>', '<input type="file" id="file-input" multiple hidden>' + DIRECTORY_DIALOG)
+    text = text.replace("  const openImport=()=>$('#file-input').click();", DIRECTORY_SCRIPT + "\n  const openImport=openServerFiles;")
     initial = """
   render();
   api('meta',{settings:S.options}).then(meta=>{
@@ -84,6 +148,8 @@ class MonitorSession:
             op = message.get("op")
             if op == "meta":
                 return self.store.describe(message.get("settings"))
+            if op == "browse":
+                return directory_listing(message.get("path", "."), message.get("base"))
             if op == "clear":
                 self.store, self.last = LogStore(), None
                 return True
@@ -116,6 +182,24 @@ class MonitorSession:
             if op == "session":
                 return json.dumps(self.store.session(options_from(message.get("settings"))), ensure_ascii=False, allow_nan=False)
             raise ValueError("지원하지 않는 명령입니다.")
+
+    def import_paths(self, paths, settings, replace=False, maximum=128 * 1024 * 1024):
+        if not isinstance(paths, list) or not 1 <= len(paths) <= 500 or any(not isinstance(path, str) or not path for path in paths):
+            raise ValueError("불러올 파일을 1~500개 선택하세요.")
+        files, used = [], 0
+        for raw in paths:
+            path = Path(raw).expanduser().resolve(strict=True)
+            if not path.is_file():
+                raise ValueError("일반 로그 파일을 선택하세요: " + str(path))
+            if path.stat().st_size > maximum - used:
+                raise ValueError(f"선택한 파일의 합계는 {maximum / 1024 / 1024:g} MB 이하여야 합니다.")
+            with path.open("rb") as stream:
+                data = stream.read(maximum - used + 1)
+            used += len(data)
+            if used > maximum:
+                raise ValueError("선택한 파일의 크기 제한을 초과했습니다.")
+            files.append((path.name, data))
+        return self.import_files(files, settings, replace)
 
     def import_files(self, files, settings, replace=False):
         with self.lock:
@@ -204,7 +288,10 @@ def make_server(host="127.0.0.1", port=8888, session=None, max_upload_mb=128):
                     message = json.loads(body)
                     if not isinstance(message, dict):
                         raise ValueError("JSON 객체가 필요합니다.")
-                    result = session.command(message)
+                    if message.get("op") == "importPaths":
+                        result = session.import_paths(message.get("files"), message.get("settings"), message.get("replace") is True, maximum)
+                    else:
+                        result = session.command(message)
                 elif path == "/api/import":
                     content_type = self.headers.get("Content-Type", "")
                     if not content_type.startswith("multipart/form-data"):
@@ -235,6 +322,8 @@ def make_server(host="127.0.0.1", port=8888, session=None, max_upload_mb=128):
                 self.reply(400, dict(error=str(exc)))
             except (BrokenPipeError, ConnectionResetError):
                 pass
+            except OSError as exc:
+                self.reply(400, dict(error=str(exc)))
             except Exception:
                 self.reply(500, dict(error="처리 중 오류가 발생했습니다. 로그 형식과 조회 조건을 확인하세요."))
 

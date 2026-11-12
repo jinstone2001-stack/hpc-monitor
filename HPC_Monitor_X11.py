@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import queue
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -12,6 +13,7 @@ from pathlib import Path
 
 from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, demo_store, iso, parse_time, table_csv
 from hpc_monitor_plot import PLOT_NAMES, VIEWS, figure_for
+from hpc_monitor_files import directory_listing
 
 TABLES = {
     "overview": [("t", "구간 시작", "time"), ("submitted", "제출", "num"), ("started", "시작", "num"), ("running", "실행", "num"), ("jobHours", "작업 시간 h", "num"), ("coreHours", "코어 시간 core·h", "num"), ("allocPct", "코어 할당률", "pct"), ("busyPct", "작업 점유율", "pct"), ("gpuUtil", "GPU 사용률", "pct")],
@@ -30,12 +32,132 @@ def fmt(value, kind="", offset=540):
         return "—"
     if kind == "time":
         return iso(value, offset).replace("T", " ")
+    if kind == "minutes":
+        value /= 60
     if isinstance(value, (float, int)):
         text = f"{value:,.2f}".rstrip("0").rstrip(".") if not float(value).is_integer() else f"{value:,.0f}"
         return text + ("%" if kind == "pct" else "")
     if isinstance(value, list):
         return ", ".join(map(str, value))
     return str(value)
+
+
+for _table in ("overview", "nodes", "groups"):
+    TABLES[_table] += [("waitCount", "대기 표본 작업 수", "num"),
+                       ("waitMean", "평균 시작 대기 min", "minutes"),
+                       ("waitMax", "최대 시작 대기 min", "minutes")]
+for _table in ("nodes", "groups", "gpu"):
+    TABLES[_table].insert(2, ("purpose", "계산 용도"))
+
+
+class LogFilePicker:
+    def __init__(self, parent, initialdir="."):
+        import tkinter as tk
+        from tkinter import ttk, messagebox
+        self.messagebox = messagebox
+        self.result, self.current, self.entries = (), None, {}
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("HPC 로그 파일 선택")
+        self.dialog.geometry("820x560")
+        self.dialog.minsize(570, 350)
+        self.dialog.transient(parent)
+        top = ttk.Frame(self.dialog, padding=10)
+        top.pack(fill="x")
+        self.up = ttk.Button(top, text="↑ 상위 폴더", command=self.go_up)
+        self.up.pack(side="left", padx=(0, 8))
+        self.path = tk.StringVar(value=str(initialdir))
+        self.entry = ttk.Entry(top, textvariable=self.path)
+        self.entry.pack(side="left", fill="x", expand=True)
+        self.entry.bind("<Return>", lambda _event: self.navigate(self.path.get()))
+        ttk.Button(top, text="이동", command=lambda: self.navigate(self.path.get())).pack(side="left", padx=(8, 0))
+        body = ttk.Frame(self.dialog, padding=(10, 0))
+        body.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(body, columns=("kind",), selectmode="extended", show="tree headings")
+        self.tree.heading("#0", text="이름 · 폴더를 더블클릭하면 이동")
+        self.tree.heading("kind", text="종류")
+        self.tree.column("#0", width=570, minwidth=200)
+        self.tree.column("kind", width=110, minwidth=90, stretch=False)
+        scroll = ttk.Scrollbar(body, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        for kind, color in (("folder", "#b77917"), ("log", "#4d92d2"), ("session", "#319c84")):
+            self.tree.tag_configure(kind, foreground=color)
+        for event in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.tree.bind(event, self.scroll)
+        self.tree.bind("<Double-1>", self.open_selection)
+        self.tree.bind("<Return>", self.open_selection)
+        self.tree.bind("<BackSpace>", self.go_up)
+        self.dialog.bind("<Alt-Up>", self.go_up)
+        self.dialog.bind("<Alt-Left>", self.go_up)
+        self.dialog.bind("<Control-l>", self.focus_path)
+        self.dialog.bind("<Escape>", lambda _event: self.dialog.destroy())
+        bottom = ttk.Frame(self.dialog, padding=10)
+        bottom.pack(fill="x")
+        ttk.Label(bottom, text="Ctrl / Shift: 여러 파일 선택 · 경로 입력 후 Enter").pack(side="left")
+        ttk.Button(bottom, text="불러오기", command=self.accept).pack(side="right")
+        ttk.Button(bottom, text="취소", command=self.dialog.destroy).pack(side="right", padx=8)
+        self.navigate(str(initialdir))
+
+    def focus_path(self, _event=None):
+        self.entry.focus_set()
+        self.entry.selection_range(0, "end")
+        return "break"
+
+    def navigate(self, path):
+        try:
+            listing = directory_listing(path, self.current)
+        except (OSError, ValueError) as exc:
+            self.messagebox.showerror("폴더를 열 수 없습니다", str(exc), parent=self.dialog)
+            if self.current:
+                self.path.set(self.current)
+            return
+        self.current, self.parent = listing["path"], listing["parent"]
+        self.path.set(self.current)
+        self.up.configure(state="disabled" if self.current == self.parent else "normal")
+        self.tree.delete(*self.tree.get_children())
+        self.entries = {}
+        labels = dict(folder="폴더", log="로그 파일", session="통합 JSON", other="파일")
+        for index, row in enumerate(listing["entries"]):
+            key = str(index)
+            self.entries[key] = row
+            self.tree.insert("", "end", iid=key, text=("▸ " if row["directory"] else "≡ ") + row["name"],
+                             values=(labels[row["kind"]],), tags=(row["kind"],))
+        self.tree.yview_moveto(0)
+
+    def go_up(self, _event=None):
+        if self.current:
+            self.navigate(self.parent)
+        return "break"
+
+    def scroll(self, event):
+        direction = -1 if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0 else 1
+        self.tree.yview_scroll(direction * 3, "units")
+        return "break"
+
+    def open_selection(self, _event=None):
+        item = self.entries.get(self.tree.focus())
+        if item and item["directory"]:
+            self.navigate(item["path"])
+        elif item:
+            self.accept()
+        return "break"
+
+    def accept(self):
+        selected = [self.entries[key] for key in self.tree.selection()]
+        if len(selected) == 1 and selected[0]["directory"]:
+            self.navigate(selected[0]["path"])
+            return
+        if not selected or any(row["directory"] for row in selected):
+            self.messagebox.showinfo("로그 파일 선택", "불러올 파일을 선택하세요. 폴더는 더블클릭해서 여세요.", parent=self.dialog)
+            return
+        self.result = tuple(row["path"] for row in selected)
+        self.dialog.destroy()
+
+    def show(self):
+        self.dialog.grab_set()
+        self.dialog.wait_window()
+        return self.result
 
 
 class MonitorGUI:
@@ -54,6 +176,7 @@ class MonitorGUI:
         self.page, self.sort_key, self.sort_reverse = 0, None, False
         self.rows, self.visible_rows, self.figure, self.canvas, self.toolbar = [], [], None, None, None
         self.closed = False
+        self.log_directory = str(Path.cwd())
         root.title("HPC 사용량 모니터 · Python X11 " + VERSION)
         root.geometry("1280x880")
         root.minsize(1000, 660)
@@ -113,7 +236,8 @@ class MonitorGUI:
         metrics.pack(fill="x", pady=(0, 12))
         self.metric_labels = {}
         for column, (key, label) in enumerate((("running", "관측된 실행 작업"), ("coreHours", "코어 시간 · core·h"),
-                                                ("busyPct", "작업 점유율 · 추정"), ("coverage", "기록 관측률"))):
+                                                ("busyPct", "작업 점유율 · 추정"), ("coverage", "기록 관측률"),
+                                                ("waitMean", "평균 시작 대기 · min"), ("waitMax", "최대 시작 대기 · min"))):
             box = ttk.LabelFrame(metrics, text=label, padding=9)
             box.grid(row=0, column=column, sticky="ew", padx=(0, 7))
             metrics.columnconfigure(column, weight=1)
@@ -137,6 +261,13 @@ class MonitorGUI:
         ttk.Checkbutton(chart_tools, text="다크 모드", variable=self.dark_var, command=self.toggle_theme).pack(side="right")
         self.canvas_frame = ttk.Frame(self.chart_frame)
         self.canvas_frame.pack(fill="both", expand=True)
+        self.chart_scroll = tk.Canvas(self.canvas_frame, highlightthickness=0)
+        self.chart_scrollbar = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.chart_scroll.yview)
+        self.chart_scroll.configure(yscrollcommand=self.chart_scrollbar.set)
+        self.chart_scrollbar.pack(side="right", fill="y")
+        self.chart_scroll.pack(fill="both", expand=True)
+        self.chart_scroll.bind("<Configure>", self.size_chart)
+        self.chart_window = None
         table_tools = ttk.Frame(self.table_frame, padding=6)
         table_tools.pack(fill="x")
         ttk.Label(table_tools, text="검색").pack(side="left")
@@ -247,10 +378,10 @@ class MonitorGUI:
     def load_files(self):
         if self.busy:
             return
-        paths = self.filedialog.askopenfilenames(parent=self.root, title="HPC 로그 파일 선택",
-                    filetypes=[("HPC 로그", "*.tsv *.log *.txt *.csv *.json"), ("모든 파일", "*")])
+        paths = LogFilePicker(self.root, self.log_directory).show()
         if not paths:
             return
+        self.log_directory = str(Path(paths[0]).parent)
         old, replace = self.store, self.replace or self.store.demo
         def task():
             store = LogStore() if replace else old
@@ -345,7 +476,7 @@ class MonitorGUI:
         data = self.data
         if data and not data.get("empty"):
             for key, label in self.metric_labels.items():
-                label.configure(text=fmt(data["summary"][key], "pct" if key.endswith("Pct") or key == "coverage" else "num"))
+                label.configure(text=fmt(data["summary"][key], "minutes" if key.startswith("wait") else "pct" if key.endswith("Pct") or key == "coverage" else "num"))
             tz = "한국시간" if self.options["offset"] == 540 else "UTC"
             self.caption.configure(text=f"{self.from_var.get()} — {self.to_var.get()} · {tz} · {sum(meta['counts'].values()):,}개 기록 · 확인 사항 {meta['issueTotal']:,}개")
         else:
@@ -370,13 +501,35 @@ class MonitorGUI:
             self.canvas.get_tk_widget().destroy()
         if self.toolbar:
             self.toolbar.destroy()
+        if self.chart_window is not None:
+            self.chart_scroll.delete(self.chart_window)
         self.figure = figure_for(self.data, self.view, self.plot, self.dark_var.get())
-        self.canvas = self.Canvas(self.figure, master=self.canvas_frame)
+        self.chart_scroll.configure(background="#172b39" if self.dark_var.get() else "#ffffff")
+        self.canvas = self.Canvas(self.figure, master=self.chart_scroll)
         self.toolbar = self.Toolbar(self.canvas, self.canvas_frame, pack_toolbar=False)
         self.toolbar.update()
         self.toolbar.pack(side="bottom", fill="x")
-        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+        self.chart_window = self.chart_scroll.create_window(0, 0, anchor="nw", window=self.canvas.get_tk_widget())
+        for event in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.canvas.get_tk_widget().bind(event, self.scroll_chart, add="+")
+        self.chart_scroll.yview_moveto(0)
+        self.size_chart()
         self.canvas.draw_idle()
+
+    def size_chart(self, _event=None):
+        if not self.canvas or self.chart_window is None:
+            return
+        width, height = max(100, self.chart_scroll.winfo_width()), max(100, self.chart_scroll.winfo_height())
+        if self.plot == "node_pies" and self.data and not self.data.get("empty"):
+            height = max(height, math.ceil(len(self.data.get("nodes", [])) / 4) * 250)
+        self.chart_scroll.itemconfigure(self.chart_window, width=width, height=height)
+        self.chart_scroll.configure(scrollregion=(0, 0, width, height))
+
+    def scroll_chart(self, event):
+        if self.plot == "node_pies":
+            direction = -1 if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0 else 1
+            self.chart_scroll.yview_scroll(direction * 3, "units")
+            return "break"
 
     def toggle_theme(self):
         dark = self.dark_var.get()

@@ -5,13 +5,16 @@ import json
 import shutil
 import subprocess
 import threading
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import hpc_monitor_core as c
 from HPC_Monitor_Web import MonitorSession, make_server, web_page
+from hpc_monitor_files import directory_listing
 
 
 def stamp(hh, day="2026-11-10"):
@@ -57,7 +60,67 @@ def fixture():
     return store
 
 
+def waiting_fixture():
+    store = c.LogStore()
+    load(store, "node_cpu", [dict(node(hh, name), partitions="g1,g2" if name == "n1" else "g3")
+                             for hh in ("00:00", "00:30", "01:00") for name in ("n1", "n2")])
+    load(store, "user_cpu", [dict(user(hh, name, ids=ids), partition="g1")
+                             for hh in ("00:30", "01:00") for name, ids in (("n1", "100,101"), ("n2", "100"))])
+    load(store, "queue_started", [dict(started(hh, jid, start=stamp("00:30")), partition="g1", wait_sec=wait)
+                                  for hh in ("00:30", "01:00") for jid, wait in (("100", 600), ("101", 1800), ("102", 0))])
+    return store
+
+
 class AccountingTests(unittest.TestCase):
+    def test_started_waits_are_unique_and_attributed_without_guessing_nodes(self):
+        data = c.analyze(waiting_fixture())
+        self.assertEqual({key: data["summary"][key] for key in ("waitCount", "waitMean", "waitMax")},
+                         dict(waitCount=3, waitMean=800, waitMax=1800))
+        nodes = {row["name"]: row for row in data["nodes"]}
+        self.assertEqual((nodes["n1"]["waitCount"], nodes["n1"]["waitMean"], nodes["n1"]["waitMax"]), (2, 1200, 1800))
+        self.assertEqual((nodes["n2"]["waitCount"], nodes["n2"]["waitMean"], nodes["n2"]["waitMax"]), (1, 600, 600))
+        groups = {row["name"]: row for row in data["groups"]}
+        self.assertEqual(groups["g1"]["waitCount"], 3)
+        self.assertIsNone(groups["g2"]["waitMax"])
+        self.assertIsNone(groups["g3"]["waitMean"])
+        self.assertEqual(nodes["n1"]["purpose"], "양자계산")
+        self.assertEqual(nodes["n2"]["purpose"], "양자계산 / 고체·MD")
+
+    def test_wait_statistics_respect_filters_zero_and_half_open_periods(self):
+        store = waiting_fixture()
+        for opt in ({"nodes": ["n1"]}, {"groups": ["g1"]}, {"users": ["alice"]}):
+            data = c.analyze(store, opt)
+            self.assertGreater(data["summary"]["waitCount"], 0)
+        data = c.analyze(store, {"nodes": ["n2"]})
+        self.assertEqual(data["summary"]["waitMax"], 600)
+        self.assertEqual(data["summary"]["waitCount"], 1)
+        for opt in ({"to": c.parse_time(stamp("00:30"))}, {"users": ["nobody"]}):
+            data = c.analyze(store, opt)
+            self.assertEqual(data["summary"]["waitCount"], 0)
+            self.assertIsNone(data["summary"]["waitMean"])
+            self.assertIsNone(data["summary"]["waitMax"])
+        zero = c.LogStore()
+        load(zero, "queue_started", [dict(started("00:30", "102", start=stamp("00:30")), partition="g1")])
+        data = c.analyze(zero, {"from": c.parse_time(stamp("00:00")), "to": c.parse_time(stamp("01:00"))})
+        self.assertEqual((data["summary"]["waitCount"], data["summary"]["waitMean"], data["summary"]["waitMax"]), (1, 0, 0))
+        self.assertEqual(data["nodes"], [])
+        self.assertEqual(data["groups"][0]["waitCount"], 1)
+
+    def test_group_purposes_and_node_prefix_fallback(self):
+        for group in ("g1", "g1n", "g2", "G1N"):
+            self.assertEqual(c.purpose_for([group]), "양자계산")
+        for group in ("g3", "g4"):
+            self.assertEqual(c.purpose_for([group]), "고체·MD")
+        self.assertEqual(c.purpose_for([], "g1n01"), "양자계산")
+        self.assertEqual(c.purpose_for([], "g4-02"), "고체·MD")
+        self.assertEqual(c.purpose_for(["other"], "node01"), "미지정")
+
+    def test_wait_csv_exports_minutes(self):
+        text = c.table_csv([dict(waitMean=90, waitMax=600)],
+                           [("waitMean", "평균 min", "minutes"), ("waitMax", "최대 min", "minutes")])
+        rows = list(csv.reader(io.StringIO(text.lstrip("\ufeff"))))
+        self.assertEqual(rows[1], ["1.5", "10.0"])
+
     def test_timezones_and_invalid_date(self):
         self.assertEqual(c.parse_time(stamp("00:30")), c.parse_time("2026-11-09T15:30:00Z"))
         self.assertEqual(c.parse_time("2026-11-10T00:30:00+09:00"), c.parse_time(stamp("00:30")))
@@ -240,7 +303,7 @@ console.log(JSON.stringify(results));
                    dict(offset=0), dict(bucket="hour"), dict(bucket="week"), dict(bucket="month"),
                    {"from": c.parse_time("2026-11-03T09:15:00"), "to": c.parse_time("2026-11-05T20:45:00")}]
         reference = Path(__file__).with_name("reference_engine.js")
-        expected = json.loads(subprocess.check_output(["node", "-e", script, str(reference), json.dumps(options)], text=True))
+        expected = json.loads(subprocess.check_output(["node", "-e", script, str(reference), json.dumps(options)], encoding="utf-8"))
         store = c.demo_store()
         for opt, old in zip(options, expected):
             new = c.analyze(store, opt)
@@ -273,6 +336,85 @@ console.log(JSON.stringify(results));
                                 self.assertAlmostEqual(rows[row[label]][field], value, places=6, msg=table + "." + field)
                             else:
                                 self.assertEqual(rows[row[label]][field], value)
+
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is optional; parity test skipped")
+    def test_current_html_and_python_wait_statistics_match(self):
+        script = """
+const fs=require('fs'),vm=require('vm'),input=JSON.parse(fs.readFileSync(0,'utf8'));
+const html=fs.readFileSync('HPC_Usage_Monitor.html','utf8');
+vm.runInThisContext(html.split('<script id="hpc-engine" type="text/plain">')[1].split('</script>')[0]);
+const store=HPC.createStore();HPC.loadSession(store,input.session,'test.json');
+console.log(JSON.stringify(input.options.map(opt=>HPC.analyze(store,opt))));
+"""
+        store = waiting_fixture()
+        options = [{}, dict(nodes=["n1"]), dict(nodes=["n2"]), dict(groups=["g1"]), dict(groups=["g2"]),
+                   dict(users=["alice"]), dict(users=["nobody"]), dict(bucket="hour"), dict(startedMode="event"),
+                   {"to": c.parse_time(stamp("00:30"))}]
+        results = json.loads(subprocess.check_output(["node", "-e", script], input=json.dumps(dict(session=store.session(), options=options)), encoding="utf-8"))
+        for opt, html in zip(options, results):
+            python = c.analyze(store, opt)
+            with self.subTest(options=opt):
+                for key in ("waitCount", "waitMean", "waitMax", "waitMedian"):
+                    self.assertEqual(python["summary"][key], html["summary"][key])
+                for table in ("nodes", "groups"):
+                    rows = {r["name"]: r for r in html[table]}
+                    self.assertEqual(set(rows), {r["name"] for r in python[table]})
+                    for row in python[table]:
+                        for key in ("waitCount", "waitMean", "waitMax", "purpose"):
+                            self.assertEqual(row[key], rows[row["name"]][key])
+
+
+class FileTests(unittest.TestCase):
+    def test_x11_wheel_scrolls_vertically_on_windows_and_x11(self):
+        from HPC_Monitor_X11 import LogFilePicker
+        calls = []
+        picker = SimpleNamespace(tree=SimpleNamespace(yview_scroll=lambda *args: calls.append(args)))
+        for delta, num in ((-120, 0), (0, 5), (120, 0), (0, 4)):
+            self.assertEqual(LogFilePicker.scroll(picker, SimpleNamespace(delta=delta, num=num)), "break")
+        self.assertEqual(calls, [(3, "units"), (3, "units"), (-3, "units"), (-3, "units")])
+
+    def test_listing_orders_folders_first_and_preserves_unicode_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "한글 폴더").mkdir()
+            for name in ("node10.tsv", "node2.tsv", "session.json", "README.md"):
+                (root / name).touch()
+            data = directory_listing(str(root))
+            self.assertEqual(data["entries"][0]["name"], "한글 폴더")
+            self.assertTrue(data["entries"][0]["directory"])
+            kinds = {row["name"]: row["kind"] for row in data["entries"]}
+            self.assertEqual(kinds["session.json"], "session")
+            self.assertEqual(kinds["node2.tsv"], "log")
+            names = [row["name"] for row in data["entries"]]
+            self.assertLess(names.index("node2.tsv"), names.index("node10.tsv"))
+            self.assertEqual(Path(data["parent"]), root.parent)
+            nested = directory_listing("한글 폴더", str(root))
+            self.assertEqual(Path(nested["path"]), root / "한글 폴더")
+            self.assertEqual(directory_listing("..", nested["path"])["path"], str(root.resolve()))
+            with self.assertRaises(ValueError):
+                directory_listing(str(root / "node2.tsv"))
+            with self.assertRaises(FileNotFoundError):
+                directory_listing(str(root / "missing"))
+
+    def test_failed_server_selection_keeps_existing_data(self):
+        session = MonitorSession(fixture())
+        old = session.store
+        for paths in ([], [""], [123], "not a list"):
+            with self.assertRaises(ValueError):
+                session.import_paths(paths, {}, replace=True)
+            self.assertIs(session.store, old)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "sample.json"
+            path.write_text(json.dumps(waiting_fixture().session()), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                session.import_paths([str(path)], {}, replace=True, maximum=1)
+            self.assertIs(session.store, old)
+            with self.assertRaises(OSError):
+                session.import_paths([str(path), str(path.parent / "missing")], {}, replace=True)
+            self.assertIs(session.store, old)
+            session.import_paths([str(path)], {}, replace=True)
+            self.assertEqual(c.analyze(session.store)["summary"]["waitCount"], 3)
 
 
 class WebTests(unittest.TestCase):
@@ -308,9 +450,32 @@ class WebTests(unittest.TestCase):
             self.assertNotIn("function analyze(store", html)
 
     def test_no_token_is_rejected(self):
+        for op in ("clear", "browse", "importPaths"):
+            with self.subTest(op=op), self.assertRaises(HTTPError) as cm:
+                self.post(dict(op=op), token=False)
+            self.assertEqual(cm.exception.code, 403)
+
+    def test_foreign_origin_is_rejected_for_server_files(self):
+        request = Request(self.url + "/api/command", json.dumps(dict(op="browse")).encode(),
+                          {"X-HPC-Token": self.server.monitor_token, "Origin": "https://example.invalid"})
         with self.assertRaises(HTTPError) as cm:
-            self.post(dict(op="clear"), token=False)
+            urlopen(request, timeout=15)
         self.assertEqual(cm.exception.code, 403)
+
+    def test_server_directory_browse_and_import(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "한글 로그.json"
+            path.write_text(json.dumps(waiting_fixture().session()), encoding="utf-8")
+            listing = self.post(dict(op="browse", path=temporary))
+            self.assertEqual(listing["entries"][0]["name"], path.name)
+            self.assertEqual(listing["entries"][0]["kind"], "session")
+            imported = self.post(dict(op="importPaths", files=[str(path)], replace=True, settings={}))
+            self.assertEqual(imported["meta"]["counts"]["queue_started"], 6)
+            analyzed = self.post(dict(op="analyze", options={}))
+            self.assertEqual(analyzed["summary"]["waitMax"], 1800)
+            with self.assertRaises(HTTPError) as cm:
+                self.post(dict(op="browse", path=str(path)))
+            self.assertEqual(cm.exception.code, 400)
 
     def test_analysis_and_job_export(self):
         self.session.store = fixture()
@@ -343,6 +508,34 @@ class WebTests(unittest.TestCase):
 
 
 class PlotTests(unittest.TestCase):
+    def test_user_colors_stay_distinct_after_filtering(self):
+        try:
+            from hpc_monitor_plot import figure_for
+            import matplotlib
+        except ImportError:
+            self.skipTest("Matplotlib is needed only for the X11 GUI")
+        store = c.demo_store()
+        full = figure_for(c.analyze(store), "users", "user_core")
+        colors = {bar.hpc_label: bar.get_facecolor() for bar in full.axes[0].patches}
+        self.assertEqual(len(set(colors.values())), len(colors))
+        filtered = figure_for(c.analyze(store, dict(users=["kang"])), "users", "user_core")
+        self.assertEqual(filtered.axes[0].patches[0].get_facecolor(), colors["kang"])
+        full.clear()
+        filtered.clear()
+
+    def test_node_pies_include_every_node_and_mark_missing_data(self):
+        try:
+            from hpc_monitor_plot import figure_for
+            import matplotlib
+        except ImportError:
+            self.skipTest("Matplotlib is needed only for the X11 GUI")
+        data = c.analyze(waiting_fixture())
+        data["nodes"][0]["allocPct"] = None
+        figure = figure_for(data, "nodes", "node_pies")
+        self.assertEqual(len(figure.axes), len(data["nodes"]))
+        self.assertIn("No data", [text.get_text() for text in figure.axes[0].texts])
+        figure.clear()
+
     def test_every_native_chart_renders_without_x11(self):
         try:
             import matplotlib

@@ -15,7 +15,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 TYPES = ("user_cpu", "queue_started", "queue_pending", "node_cpu", "gpu_user", "gpu")
 SCHEMA = {
     "user_cpu": "timestamp user node partition cpus_alloc mem_alloc_mb n_jobs job_ids".split(),
@@ -320,6 +320,22 @@ def natural_key(text):
     return [(0, int(p)) if p.isdigit() else (1, p.lower()) for p in re.split(r"(\d+)", str(text))]
 
 
+def purpose_for(groups, node=""):
+    purposes = {"g1": "양자계산", "g1n": "양자계산", "g2": "양자계산",
+                "g3": "고체·MD", "g4": "고체·MD"}
+    labels = list(dict.fromkeys(purposes[g.lower()] for g in sorted(groups) if g.lower() in purposes))
+    if not labels:
+        prefix = re.match(r"^(g1n|g[1-4])(?:[-_.]|\d|$)", node, re.I)
+        if prefix:
+            labels.append(purposes[prefix[1].lower()])
+    return " / ".join(labels) or "미지정"
+
+
+def wait_stats(values):
+    return dict(waitCount=len(values), waitMean=statistics.mean(values) if values else None,
+                waitMax=max(values) if values else None)
+
+
 def merge_ranges(ranges):
     result = []
     for start, end in sorted((a, b) for a, b in ranges if b > a):
@@ -581,6 +597,7 @@ def analyze(store: LogStore, options=None):
     visible, pending_rows, reasons, waits, activity = [], [], defaultdict(int), [], defaultdict(list)
     per_node_jobs, per_group_jobs = defaultdict(set), defaultdict(set)
     per_node_seconds, per_group_seconds = defaultdict(float), defaultdict(float)
+    node_waits, group_waits = defaultdict(list), defaultdict(list)
     submitted = started = running = ended_count = 0
     total_job_sec = 0
     for j in jobs.values():
@@ -622,6 +639,11 @@ def analyze(store: LogStore, options=None):
             if wait is not None and wait >= 0:
                 waits.append(wait)
                 day(j["start"])["wait"].append(wait)
+                for node in j["nodes"].intersection(selected_nodes):
+                    node_waits[node].append(wait)
+                for group in set(parse_list(j["partition"])):
+                    if choose("groups", group):
+                        group_waits[group].append(wait)
         if elapsed:
             running += 1
             total_job_sec += elapsed
@@ -735,10 +757,13 @@ def analyze(store: LogStore, options=None):
                 g[field] = max(g[field] if g[field] is not None else -math.inf, row[source])
     states = {r["node"]: r["state"] for r in tables["node_cpu"] if r["t"] <= stop}
     calendar = opt["denominator"] == "calendar"
+    for name in node_waits:
+        stat(node_stats, name)
     node_rows = []
     for name, s in node_stats.items():
         inv = inventory[name]
         node_rows.append(dict(name=name, groups=", ".join(sorted(inv["groups"])),
+                              purpose=purpose_for(inv["groups"], name), **wait_stats(node_waits[name]),
                               type=inv["nodeType"], state=states.get(name, ""), cores=inv["cores"],
                               jobs=len(per_node_jobs[name]) if has_jobs else None,
                               jobHours=per_node_seconds[name] / 3600 if has_jobs else None,
@@ -769,8 +794,11 @@ def analyze(store: LogStore, options=None):
                               gpuMemHours=s["gpuMemSec"] / 3600 if available["gpu_user"] else None,
                               nodes=", ".join(sorted(s["nodes"], key=natural_key))))
     group_rows = []
+    for name in group_waits:
+        stat(group_stats, name)
     for name, s in group_stats.items():
         group_rows.append(dict(name=name, nodeCount=len(s["nodes"]),
+                               purpose=purpose_for([name]), **wait_stats(group_waits[name]),
                                jobs=len(per_group_jobs[name]) if has_jobs else None,
                                jobHours=per_group_seconds[name] / 3600 if has_jobs else None,
                                coreHours=None if scoped and not available["user_cpu"] else s["coreSec"] / 3600,
@@ -779,6 +807,7 @@ def analyze(store: LogStore, options=None):
                                busyPct=ratio(s["busy"], len(s["nodes"]) * duration if calendar else s["observed"]),
                                coverage=ratio(s["observed"], len(s["nodes"]) * duration)))
     gpu_rows = [dict(id=g["id"], node=g["node"], name=g["name"],
+                     purpose=purpose_for(inventory[g["node"]]["groups"], g["node"]),
                      util=g["gpuSec"] / g["gpuWeight"] if g["gpuWeight"] else None,
                      memPct=g["memSec"] / g["memWeight"] if g["memWeight"] else None,
                      tempMax=g["tempMax"], power=g["powerSec"] / g["powerWeight"] if g["powerWeight"] else None,
@@ -796,7 +825,7 @@ def analyze(store: LogStore, options=None):
                    coveredBusyPct=ratio(busy, observed), allocPct=ratio(core_sec, full_core if calendar else capacity),
                    coverage=ratio(observed, full_node), nodes=len(selected_nodes), users=len(user_rows),
                    waitMedian=statistics.median(waits) if waits else None,
-                   waitMean=statistics.mean(waits) if waits else None,
+                   **wait_stats(waits),
                    pending=len(pending_rows) if not opt["nodes"] and available["queue_pending"] else None,
                    gpuUtil=sum(g["gpuSec"] for g in gpu_stats.values()) / gpu_weight if gpu_weight else None)
     series = []
@@ -808,7 +837,8 @@ def analyze(store: LogStore, options=None):
                            busyPct=ratio(d["busy"], d["observed"]), allocPct=ratio(d["coreSec"], d["capacitySec"]),
                            pendingMax=d["pendingMax"] if available["queue_pending"] and not opt["nodes"] else None,
                            gpuUtil=d["gpuSec"] / d["gpuWeight"] if d["gpuWeight"] else None,
-                           waitMedian=statistics.median(d["wait"]) if d["wait"] else None))
+                           waitMedian=statistics.median(d["wait"]) if d["wait"] else None,
+                           **wait_stats(d["wait"])))
 
     def bucket_duration(t):
         return (min(stop, next_bucket(t, mode, offset)) - max(start, t)) / 1000
@@ -820,6 +850,7 @@ def analyze(store: LogStore, options=None):
         "빈 작업 기록과 수집 실패는 완전히 구분할 수 없습니다. node_cpu 시각을 빈 스냅샷 판단에 사용할 수 있습니다.",
         "코어 할당률은 실제 CPU 계산 효율이 아닙니다. GPU 사용자별 계산 사용률은 메모리 비중으로 배분하지 않습니다.",
         "GPU 사용자 점유시간은 GPU·h입니다. 공유 GPU의 사용자 합계는 장치 시간보다 클 수 있습니다.",
+        "시작 전 대기는 조회기간에 시작한 고유 작업 기준입니다. 그룹은 작업 partition 기준이며, 노드는 user_cpu에서 확인된 실행 노드에만 집계합니다. 다중 노드 작업은 각 노드에 한 번씩 포함합니다.",
     ]
     if scoped:
         notices.append("GPU 사용률·온도·전력은 선택 사용자가 사용한 장치 전체 값입니다.")
@@ -918,6 +949,8 @@ def table_csv(rows, columns, offset=540):
             value = row.get(key)
             if fmt and fmt[0] == "time" and value is not None:
                 value = iso(value, offset).replace("T", " ")
+            if fmt and fmt[0] == "minutes" and value is not None:
+                value /= 60
             if isinstance(value, str) and re.match(r"^\s*[=+\-@]", value):
                 value = "'" + value
             values.append("" if value is None else value)

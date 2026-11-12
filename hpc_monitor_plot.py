@@ -2,18 +2,21 @@
 from __future__ import annotations
 
 import math
+from colorsys import hls_to_rgb
 
 VIEWS = {
     "overview": ("전체 현황", ["overview", "jobs", "rates", "node_heat", "user_core"]),
-    "nodes": ("노드별", ["node_heat", "node_core", "node_busy"]),
-    "groups": ("노드 그룹별", ["group_core", "group_rate"]),
+    "nodes": ("노드별", ["node_heat", "node_pies", "node_core", "node_busy", "node_wait"]),
+    "groups": ("노드 그룹별", ["group_core", "group_rate", "group_wait"]),
     "users": ("사용자별", ["user_core", "user_time", "user_gpu"]),
-    "queue": ("작업·대기열", ["pending", "waiting", "reasons", "timeline"]),
+    "queue": ("작업·대기열", ["pending", "waiting", "node_wait", "group_wait", "reasons", "timeline"]),
     "gpu": ("GPU", ["gpu_heat", "gpu_rate", "user_gpu", "gpu_power", "gpu_temp"]),
     "data": ("로그·검증", ["quality"]),
 }
 PLOT_NAMES = dict(overview="주요 지표 모아보기", jobs="날짜별 작업 수", rates="할당·점유 추이",
                   node_heat="노드별 할당률 지도", user_core="사용자별 코어 시간",
+                  node_pies="노드별 사용률 원그래프", node_wait="노드별 평균·최대 시작 대기",
+                  group_wait="그룹별 평균·최대 시작 대기",
                   node_core="노드별 코어 시간", node_busy="노드별 작업 점유율",
                   group_core="그룹별 코어 시간", group_rate="그룹별 코어 할당률",
                   user_time="사용자별 작업 시간", user_gpu="사용자별 GPU 점유",
@@ -36,6 +39,12 @@ def figure_for(data, view="overview", plot=None, dark=False):
     meta = data.get("meta", {}) if data else {}
     offset = data.get("settings", {}).get("offset", 540) if data else 540
     series = data.get("series", []) if data else []
+    users = sorted(meta.get("users", []) or [r["name"] for r in (data or {}).get("users", [])])
+    user_colors = {name: hls_to_rgb(i * .61803398875 % 1, .47, .6) for i, name in enumerate(users)}
+
+    def row_label(row, label="name"):
+        purpose = row.get("purpose", "").replace("양자계산", "Quantum").replace("고체·MD", "Solid / MD").replace("미지정", "Unassigned")
+        return str(row[label]) + (" · " + purpose if purpose else "")
 
     def setup(ax, title, unit=None):
         ax.set_facecolor(bg)
@@ -60,13 +69,14 @@ def figure_for(data, view="overview", plot=None, dark=False):
             positions = list(range(0, len(series), max(1, math.ceil(len(series) / 8))))
             ax.set_xticks(positions, [iso(series[i]["t"], offset)[5:10] for i in positions])
 
-    def bars(ax, rows, key, title, unit, label="name"):
+    def bars(ax, rows, key, title, unit, label="name", by_user=False):
         setup(ax, title, unit)
         values = sorted((r for r in rows if r.get(key) is not None), key=lambda r: -r[key])[:15]
         if not values:
             return empty(ax)
         values.reverse()
-        rects = ax.barh([str(r[label]) for r in values], [r[key] for r in values], color=teal, height=.6)
+        rects = ax.barh([row_label(r, label) for r in values], [r[key] for r in values],
+                        color=[user_colors[r[label]] for r in values] if by_user else teal, height=.6)
         ax.grid(axis="x", color=line)
         ax.grid(axis="y", visible=False)
         ax.set_ylabel("")
@@ -92,7 +102,7 @@ def figure_for(data, view="overview", plot=None, dark=False):
         if not series or not any(r.get(key) is not None for r in series for key, _, _ in keys):
             return empty(ax)
         for key, label, color in keys:
-            ax.plot(range(len(series)), [np.nan if r.get(key) is None else r[key] / 60 if key == "waitMedian" else r[key] for r in series],
+            ax.plot(range(len(series)), [np.nan if r.get(key) is None else r[key] / 60 if key.startswith("wait") else r[key] for r in series],
                     color=color, marker="." if len(series) < 50 else None, linewidth=1.6, label=label)
         dates(ax)
         if fixed:
@@ -114,11 +124,49 @@ def figure_for(data, view="overview", plot=None, dark=False):
         cmap = colormaps["YlGnBu"].copy()
         cmap.set_bad("#52606b" if dark else "#e3e9ee")
         image = ax.imshow(np.ma.masked_invalid(matrix), aspect="auto", cmap=cmap, vmin=0, vmax=100, interpolation="nearest")
-        ax.set_yticks(range(len(names)), names)
+        label = "id" if gpu else "name"
+        lookup = {r[label]: r for r in data.get("gpu" if gpu else "nodes", [])}
+        ax.set_yticks(range(len(names)), [row_label(lookup[name], label) for name in names])
         dates(ax)
         ax.grid(False)
         fig.colorbar(image, ax=ax, fraction=.025, pad=.02).ax.tick_params(labelsize=8, colors=muted)
         ax.set_xlabel("Gray = no observations; up to 80 rows shown. Use node filters for more.", fontsize=8)
+
+    def waiting_by(ax, table):
+        setup(ax, "Wait before job start by " + ("node" if table == "nodes" else "partition"), "min")
+        rows = sorted((r for r in data.get(table, []) if r["waitMax"] is not None), key=lambda r: -r["waitMax"])[:15]
+        if not rows:
+            return empty(ax, "No started jobs with known waits for this selection")
+        rows.reverse()
+        y = np.arange(len(rows))
+        ax.barh(y + .18, [r["waitMean"] / 60 for r in rows], height=.32, color=blue, label="Mean")
+        ax.barh(y - .18, [r["waitMax"] / 60 for r in rows], height=.32, color=amber, label="Maximum")
+        ax.set_yticks(y, [row_label(r) for r in rows])
+        ax.set_ylabel("")
+        ax.set_xlabel("Minutes · unique started jobs; top 15 by maximum wait", fontsize=8)
+        ax.legend(fontsize=8, frameon=False, labelcolor=ink)
+
+    def node_pies():
+        rows = data.get("nodes", [])
+        if not rows:
+            return empty(fig.add_subplot())
+        columns = min(4, len(rows))
+        count = math.ceil(len(rows) / columns)
+        fig.set_size_inches(11.5, max(5.7, count * 2.5))
+        for index, row in enumerate(rows, 1):
+            ax = fig.add_subplot(count, columns, index)
+            value = row["allocPct"]
+            known = value is not None
+            clamped = max(0, min(100, value or 0))
+            color = hls_to_rgb((220 + 140 * clamped / 100) / 360, .47, .7)
+            ax.pie([clamped, 100 - clamped] if known else [0, 100],
+                   colors=[color, line], startangle=90, counterclock=False,
+                   wedgeprops=dict(width=.3, edgecolor=bg))
+            ax.text(0, 0, f"{value:.1f}%" if known else "No data", ha="center", va="center", color=color if known else muted, fontsize=15)
+            ax.set_title(row_label(row), color=ink, fontsize=10)
+            ax.text(.5, -.07, "Coverage: " + (f"{row['coverage']:.1f}%" if row["coverage"] is not None else "unknown"),
+                    transform=ax.transAxes, ha="center", color=muted, fontsize=8)
+        fig.suptitle("Node core allocation · blue = low, red = high", color=ink, fontsize=12)
 
     def draw(ax, name):
         if name == "jobs":
@@ -143,9 +191,12 @@ def figure_for(data, view="overview", plot=None, dark=False):
         }
         if name in mappings:
             table, key, title, unit, label = mappings[name]
-            return bars(ax, data.get(table, []), key, title, unit, label)
+            return bars(ax, data.get(table, []), key, title, unit, label, table == "users")
         if name == "waiting":
-            return trend(ax, [("waitMedian", "Median wait", blue)], "Wait before job start", "min", False)
+            return trend(ax, [("waitMean", "Mean wait", blue), ("waitMax", "Maximum wait", amber),
+                              ("waitMedian", "Median wait", teal)], "Wait before job start", "min", False)
+        if name in ("node_wait", "group_wait"):
+            return waiting_by(ax, "nodes" if name == "node_wait" else "groups")
         if name == "pending":
             setup(ax, "Peak observed pending jobs per period", "jobs")
             if not series or all(r["pendingMax"] is None for r in series):
@@ -181,6 +232,8 @@ def figure_for(data, view="overview", plot=None, dark=False):
         ax = fig.add_subplot()
         setup(ax, "HPC Monitor")
         empty(ax, data.get("error", "Load log files or use the built-in demo") if data else "Load log files or use the built-in demo")
+    elif plot == "node_pies":
+        node_pies()
     elif plot == "overview":
         for index, name in enumerate(("jobs", "rates", "user_core", "node_heat"), 1):
             draw(fig.add_subplot(2, 2, index), name)
