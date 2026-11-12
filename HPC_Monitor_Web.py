@@ -121,7 +121,7 @@ def web_page(token):
     initial = """
   render();
   api('meta',{settings:S.options}).then(meta=>{
-    if(meta.min!==null){S.meta=meta;setRange(meta);fillFilters(meta,true);analyze();}
+    if(meta.min!==null){S.meta=meta;if(meta.min===meta.max&&meta.counts.gpu)S.tab='gpu';setRange(meta);fillFilters(meta,true);analyze();}
   }).catch(e=>toast(e.message));
 })();
 """

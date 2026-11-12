@@ -71,7 +71,62 @@ def waiting_fixture():
     return store
 
 
+def gpu_fixture(single=False):
+    store = c.LogStore()
+    hours = ("00:30",) if single else ("00:00", "00:30")
+    load(store, "gpu", [dict(timestamp=stamp(hh), node="g1n-01", gpu_index="0", gpu_name="Test GPU",
+                             gpu_util=0 if hh == "00:00" else 80, mem_pct=25, temp_c=55, power_w=120)
+                        for hh in hours])
+    load(store, "gpu_user", [dict(timestamp=stamp("00:30"), node="g1n-01", gpu_index="0", user="alice",
+                                  job_id="100", pid="10", mem_used_mb=1024)])
+    return store
+
+
+def html_results(store, options):
+    script = """
+const fs=require('fs'),vm=require('vm'),input=JSON.parse(fs.readFileSync(0,'utf8'));
+const html=fs.readFileSync('HPC_Usage_Monitor.html','utf8');
+vm.runInThisContext(html.split('<script id="hpc-engine" type="text/plain">')[1].split('</script>')[0]);
+const store=HPC.createStore();HPC.loadSession(store,input.session,'test.json');
+console.log(JSON.stringify(input.options.map(opt=>HPC.analyze(store,opt))));
+"""
+    return json.loads(subprocess.check_output(["node", "-e", script],
+                      input=json.dumps(dict(session=store.session(), options=options)), encoding="utf-8"))
+
+
 class AccountingTests(unittest.TestCase):
+    def test_single_gpu_snapshot_is_visible_without_fabricated_duration(self):
+        data = c.analyze(gpu_fixture(single=True))
+        self.assertFalse(data["empty"])
+        self.assertTrue(data["snapshotOnly"])
+        self.assertEqual(data["latestGpu"][0]["util"], 80)
+        self.assertEqual(data["latestGpu"][0]["t"], c.parse_time(stamp("00:30")))
+        self.assertEqual(data["latestGpu"][0]["users"], ["alice"])
+        self.assertIsNone(data["gpu"][0]["util"])
+        self.assertIsNone(data["gpu"][0]["energyWh"])
+        self.assertEqual(data["gpuHeat"], [])
+
+    def test_single_gpu_user_observation_keeps_device_visible(self):
+        data = c.analyze(gpu_fixture(), dict(users=["alice"]))
+        self.assertEqual(len(data["gpu"]), 1)
+        self.assertEqual(data["gpu"][0]["util"], 0)
+        self.assertEqual(data["latestGpu"][0]["util"], 80)
+        self.assertEqual(data["latestGpu"][0]["t"], data["to"])
+        self.assertEqual(c.analyze(gpu_fixture(), dict(users=["unknown"]))["gpu"], [])
+        self.assertEqual(c.analyze(gpu_fixture(), dict(nodes=["unknown"]))["latestGpu"], [])
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is optional; parity test skipped")
+    def test_current_html_and_python_gpu_snapshots_match(self):
+        options = [{}, dict(users=["alice"]), dict(users=["unknown"]), dict(nodes=["unknown"])]
+        for single in (False, True):
+            store = gpu_fixture(single)
+            for opt, html in zip(options, html_results(store, options)):
+                data = c.analyze(store, opt)
+                with self.subTest(single=single, options=opt):
+                    self.assertEqual(data["latestGpu"], html["latestGpu"])
+                    self.assertEqual(data["gpu"], html["gpu"])
+                    self.assertEqual(data["summary"]["gpuUtil"], html["summary"]["gpuUtil"])
+
     def test_started_waits_are_unique_and_attributed_without_guessing_nodes(self):
         data = c.analyze(waiting_fixture())
         self.assertEqual({key: data["summary"][key] for key in ("waitCount", "waitMean", "waitMax")},
@@ -484,6 +539,13 @@ class WebTests(unittest.TestCase):
         self.assertEqual(d["jobsTotal"], 2)
         self.assertEqual(len(self.post(dict(op="jobExport"))), 2)
 
+    def test_gpu_single_snapshot_api_returns_actual_values(self):
+        self.session.store = gpu_fixture(single=True)
+        data = self.post(dict(op="analyze", options=dict(users=["alice"])))
+        self.assertFalse(data["empty"])
+        self.assertEqual(data["latestGpu"][0]["util"], 80)
+        self.assertIsNone(data["gpu"][0]["util"])
+
     def test_multipart_import_and_session_export(self):
         boundary = "HPC-test-boundary-12345"
         payload = json.dumps(fixture().session()).encode()
@@ -507,7 +569,40 @@ class WebTests(unittest.TestCase):
         self.assertIn("counts", self.post(dict(op="meta")))
 
 
+class HelpTests(unittest.TestCase):
+    def test_offline_help_is_shared_and_covers_controls_and_formulas(self):
+        from hpc_monitor_help import help_text
+        guide = help_text()
+        for topic in ("그래프", "원그래프", "필터", "CSV", "PNG", "JSON", "GPU", "wait_sec", "83.33%", "스냅샷", "도움말"):
+            self.assertIn(topic, guide)
+        html = web_page("help-test").decode("utf-8")
+        sections = json.loads(html.split('<script id="hpc-help" type="application/json">')[1].split('</script>', 1)[0])
+        self.assertEqual(len(sections), 13)
+        self.assertTrue(all(section["title"] in guide for section in sections))
+
+
 class PlotTests(unittest.TestCase):
+    def test_group_pies_and_overview_use_capacity_weighted_allocation(self):
+        try:
+            from hpc_monitor_plot import figure_for
+            import matplotlib
+        except ImportError:
+            self.skipTest("Matplotlib is needed only for the X11 GUI")
+        store = c.LogStore()
+        load(store, "node_cpu", [dict(node(hh, name, alloc, total), partitions="g1")
+                                 for hh in ("00:00", "00:30") for name, alloc, total in (("n1", 32, 64), ("n2", 128, 128))])
+        data = c.analyze(store)
+        self.assertAlmostEqual(data["groups"][0]["allocPct"], 100 * 160 / 192)
+        groups = figure_for(data, "groups", "group_pies")
+        self.assertEqual(len(groups.axes), 1)
+        self.assertIn("83.3%", [text.get_text() for text in groups.axes[0].texts])
+        overview = figure_for(data, "overview", "overview")
+        self.assertEqual(len(overview.axes), 4)
+        self.assertEqual(len(overview.axes[-1].images), 0)
+        self.assertIn("83.3%", [text.get_text() for text in overview.axes[-1].texts])
+        groups.clear()
+        overview.clear()
+
     def test_user_colors_stay_distinct_after_filtering(self):
         try:
             from hpc_monitor_plot import figure_for

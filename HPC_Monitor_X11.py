@@ -14,6 +14,7 @@ from pathlib import Path
 from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, demo_store, iso, parse_time, table_csv
 from hpc_monitor_plot import PLOT_NAMES, VIEWS, figure_for
 from hpc_monitor_files import directory_listing
+from hpc_monitor_help import help_text
 
 TABLES = {
     "overview": [("t", "구간 시작", "time"), ("submitted", "제출", "num"), ("started", "시작", "num"), ("running", "실행", "num"), ("jobHours", "작업 시간 h", "num"), ("coreHours", "코어 시간 core·h", "num"), ("allocPct", "코어 할당률", "pct"), ("busyPct", "작업 점유율", "pct"), ("gpuUtil", "GPU 사용률", "pct")],
@@ -24,7 +25,10 @@ TABLES = {
     "gpu": [("id", "GPU"), ("name", "모델"), ("util", "평균 사용률", "pct"), ("memPct", "평균 메모리 점유율", "pct"), ("tempMax", "최대 온도 °C", "num"), ("power", "평균 전력 W", "num"), ("energyWh", "추정 에너지 Wh", "num"), ("coverage", "관측률", "pct"), ("users", "관측 사용자")],
     "data": [("name", "파일명"), ("types", "로그 종류"), ("rows", "새 기록", "num"), ("duplicates", "중복", "num"), ("invalid", "제외한 행", "num")],
 }
-DATA_KEYS = dict(overview="series", nodes="nodes", groups="groups", users="users", queue="jobs", gpu="gpu")
+DATA_KEYS = dict(overview="series", nodes="nodes", groups="groups", users="users", queue="jobs", gpu="gpu", gpu_latest="latestGpu")
+TABLES["gpu_latest"] = [("id", "GPU"), ("node", "노드"), ("purpose", "계산 용도"), ("t", "마지막 관측 시각", "time"),
+                        ("util", "관측 사용률", "pct"), ("memPct", "관측 메모리 비율", "pct"),
+                        ("temp", "관측 온도 °C", "num"), ("power", "관측 전력 W", "num"), ("users", "관측 사용자")]
 
 
 def fmt(value, kind="", offset=540):
@@ -176,6 +180,7 @@ class MonitorGUI:
         self.page, self.sort_key, self.sort_reverse = 0, None, False
         self.rows, self.visible_rows, self.figure, self.canvas, self.toolbar = [], [], None, None, None
         self.closed = False
+        self.guide = help_text()
         self.log_directory = str(Path.cwd())
         root.title("HPC 사용량 모니터 · Python X11 " + VERSION)
         root.geometry("1280x880")
@@ -204,7 +209,7 @@ class MonitorGUI:
         self.title = ttk.Label(top, text="사용량 현황", style="Title.TLabel")
         self.title.pack(side="left")
         self.controls = []
-        for label, command in [("로그 불러오기", self.load_files), ("예제", self.demo), ("설정", self.settings), ("통합 JSON", self.save_session), ("집계 CSV", self.save_csv), ("그래프 PNG", self.save_png)]:
+        for label, command in [("로그 불러오기", self.load_files), ("예제", self.demo), ("설정", self.settings), ("도움말", lambda: self.notebook.select(self.help_frame)), ("통합 JSON", self.save_session), ("집계 CSV", self.save_csv), ("그래프 PNG", self.save_png)]:
             button = ttk.Button(top, text=label, command=command)
             button.pack(side="right", padx=3)
             self.controls.append(button)
@@ -249,14 +254,12 @@ class MonitorGUI:
         self.chart_frame, self.table_frame, self.help_frame = ttk.Frame(self.notebook), ttk.Frame(self.notebook), ttk.Frame(self.notebook)
         self.notebook.add(self.chart_frame, text="그래프")
         self.notebook.add(self.table_frame, text="상세 표")
-        self.notebook.add(self.help_frame, text="집계 기준·검증")
+        self.notebook.add(self.help_frame, text="도움말·검증")
         chart_tools = ttk.Frame(self.chart_frame, padding=5)
         chart_tools.pack(fill="x")
-        ttk.Label(chart_tools, text="그래프 선택").pack(side="left", padx=5)
-        self.plot_var = tk.StringVar(value=PLOT_NAMES["overview"])
-        self.plot_combo = ttk.Combobox(chart_tools, textvariable=self.plot_var, state="readonly", width=30)
-        self.plot_combo.pack(side="left", padx=6)
-        self.plot_combo.bind("<<ComboboxSelected>>", lambda _e: self.select_plot())
+        self.plot_var = tk.StringVar(value="overview")
+        self.plot_buttons = ttk.Frame(chart_tools)
+        self.plot_buttons.pack(side="left", fill="x", expand=True)
         self.dark_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(chart_tools, text="다크 모드", variable=self.dark_var, command=self.toggle_theme).pack(side="right")
         self.canvas_frame = ttk.Frame(self.chart_frame)
@@ -292,7 +295,10 @@ class MonitorGUI:
         table_box.columnconfigure(0, weight=1)
         self.tree.bind("<Double-1>", self.row_details)
         self.help_text = tk.Text(self.help_frame, wrap="word", padx=17, pady=15, state="disabled")
-        self.help_text.pack(fill="both", expand=True)
+        help_scroll = ttk.Scrollbar(self.help_frame, orient="vertical", command=self.help_text.yview)
+        self.help_text.configure(yscrollcommand=help_scroll.set)
+        help_scroll.pack(side="right", fill="y")
+        self.help_text.pack(side="left", fill="both", expand=True)
         bottom = ttk.Frame(body)
         bottom.pack(fill="x", pady=(7, 0))
         self.status = tk.StringVar(value="준비")
@@ -303,7 +309,9 @@ class MonitorGUI:
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.update_range()
         self.switch_view("overview", draw=False)
-        if self.store.describe()["min"] is not None and self.store.describe()["min"] != self.store.describe()["max"]:
+        if self.store.describe()["min"] is not None and (self.store.describe()["min"] != self.store.describe()["max"] or self.store.describe()["counts"]["gpu"]):
+            if self.store.describe()["min"] == self.store.describe()["max"]:
+                self.switch_view("gpu", draw=False)
             self.apply_filters()
         elif self.store.describe()["min"] is not None:
             self.data = dict(empty=True, meta=self.store.describe(self.options), settings=dict(self.options),
@@ -360,7 +368,11 @@ class MonitorGUI:
             return
         a = parse_time(self.from_var.get(), self.options["offset"])
         b = parse_time(self.to_var.get(), self.options["offset"])
-        if a is None or b is None or b <= a:
+        meta = self.store.describe(self.options)
+        snapshot_only = bool(meta["counts"]["gpu"] and meta["min"] == meta["max"] and self.from_var.get() == self.to_var.get() == iso(meta["min"], self.options["offset"]))
+        if snapshot_only:
+            a = b = meta["min"]
+        if a is None or b is None or b <= a and not snapshot_only:
             self.messagebox.showinfo("조회 기간", "서로 다른 시각의 기록을 두 개 이상 불러오고 시작·종료 시각을 확인하세요.", parent=self.root)
             return
         self.options.update(self.filter_selection)
@@ -400,12 +412,14 @@ class MonitorGUI:
             self.update_range()
             self.filter_selection = {k: [] for k in self.filter_selection}
             self.update_filter_labels()
-            if store.describe()["min"] == store.describe()["max"]:
+            if store.describe()["min"] == store.describe()["max"] and not store.describe()["counts"]["gpu"]:
                 self.data = dict(empty=True, meta=store.describe(self.options), settings=dict(self.options),
                                  error="기록 시각이 하나뿐입니다. 다음 시각의 로그를 추가하세요.")
                 self.switch_view("data")
                 self.render()
             else:
+                if store.describe()["min"] == store.describe()["max"]:
+                    self.switch_view("gpu", draw=False)
                 self.apply_filters()
         self.work(task, done)
 
@@ -460,16 +474,23 @@ class MonitorGUI:
     def switch_view(self, view, draw=True):
         self.view, self.plot, self.page = view, VIEWS[view][1][0], 0
         self.title.configure(text=VIEWS[view][0] + (" · 예제 데이터" if self.store.demo else ""))
-        self.plot_combo.configure(values=[PLOT_NAMES[k] for k in VIEWS[view][1]])
-        self.plot_var.set(PLOT_NAMES[self.plot])
+        for button in self.plot_buttons.winfo_children():
+            button.destroy()
+        for index, plot in enumerate(VIEWS[view][1]):
+            self.ttk.Radiobutton(self.plot_buttons, text=PLOT_NAMES[plot], variable=self.plot_var, value=plot,
+                                 command=lambda p=plot: self.select_plot(p)).grid(row=index // 3, column=index % 3, padx=5, pady=4, sticky="w")
+        self.plot_var.set(self.plot)
         self.search_var.set("")
         self.sort_key = None
         if draw:
+            self.notebook.select(self.chart_frame)
             self.render()
 
-    def select_plot(self):
-        self.plot = next(k for k in VIEWS[self.view][1] if PLOT_NAMES[k] == self.plot_var.get())
-        self.render_figure()
+    def select_plot(self, plot):
+        self.plot = plot
+        self.plot_var.set(plot)
+        self.notebook.select(self.chart_frame)
+        self.render()
 
     def render(self):
         meta = self.store.describe(self.options)
@@ -483,13 +504,14 @@ class MonitorGUI:
             self.caption.configure(text=data.get("error", "로그를 불러오세요.") if data else "탭 구분 로그 파일을 선택하거나 예제로 시작하세요.")
             for label in self.metric_labels.values():
                 label.configure(text="—")
-        self.rows = meta["files"] if self.view == "data" else data.get(DATA_KEYS[self.view], []) if data and not data.get("empty") else []
-        self.columns = TABLES[self.view]
+        table_view = "gpu_latest" if self.view == "gpu" and self.plot == "gpu_latest" else self.view
+        self.rows = meta["files"] if table_view == "data" else data.get(DATA_KEYS[table_view], []) if data and not data.get("empty") else []
+        self.columns = TABLES[table_view]
         self.page = 0
         self.update_table()
         notices = data.get("notices", []) if data else []
-        help_text = "\n\n".join(notices) + "\n\n입력 파일 확인 사항\n" + "\n".join(f"{r['file']}:{r['line']}  {r['message']}" for r in meta["issues"])
-        help_text += "\n\n시간은 추정값이며 종료 소멸은 성공·실패를 뜻하지 않습니다.\n로그는 자동 저장되지 않습니다. 다시 열려면 통합 JSON을 저장하세요.\n노드 목록은 업로드한 로그에 등장한 노드 기준입니다."
+        help_text = self.guide + "\n\n현재 조회의 확인 사항\n" + "\n\n".join(notices)
+        help_text += "\n\n입력 파일 확인 사항\n" + "\n".join(f"{r['file']}:{r['line']}  {r['message']}" for r in meta["issues"])
         self.help_text.configure(state="normal")
         self.help_text.delete("1.0", "end")
         self.help_text.insert("1.0", help_text)
@@ -520,13 +542,14 @@ class MonitorGUI:
         if not self.canvas or self.chart_window is None:
             return
         width, height = max(100, self.chart_scroll.winfo_width()), max(100, self.chart_scroll.winfo_height())
-        if self.plot == "node_pies" and self.data and not self.data.get("empty"):
-            height = max(height, math.ceil(len(self.data.get("nodes", [])) / 4) * 250)
+        if self.plot in ("node_pies", "group_pies") and self.data and not self.data.get("empty"):
+            table = "nodes" if self.plot == "node_pies" else "groups"
+            height = max(height, math.ceil(len(self.data.get(table, [])) / 4) * 250)
         self.chart_scroll.itemconfigure(self.chart_window, width=width, height=height)
         self.chart_scroll.configure(scrollregion=(0, 0, width, height))
 
     def scroll_chart(self, event):
-        if self.plot == "node_pies":
+        if self.plot in ("node_pies", "group_pies"):
             direction = -1 if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0 else 1
             self.chart_scroll.yview_scroll(direction * 3, "units")
             return "break"
@@ -535,7 +558,7 @@ class MonitorGUI:
         dark = self.dark_var.get()
         bg, panel, fg, field = ("#101e29", "#172b39", "#dfeaf1", "#1b3040") if dark else ("#f4f6f8", "#ffffff", "#172a3a", "#ffffff")
         self.root.configure(background=bg)
-        for widget in (".", "TFrame", "TLabel", "TLabelframe", "TLabelframe.Label", "TCheckbutton", "TNotebook"):
+        for widget in (".", "TFrame", "TLabel", "TLabelframe", "TLabelframe.Label", "TCheckbutton", "TRadiobutton", "TNotebook"):
             self.style.configure(widget, background=bg, foreground=fg)
         self.style.configure("TButton", background=panel, foreground=fg)
         self.style.configure("TEntry", fieldbackground=field, foreground=fg)

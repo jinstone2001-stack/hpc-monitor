@@ -15,7 +15,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-VERSION = "1.1.0"
+VERSION = "1.3.0"
 TYPES = ("user_cpu", "queue_started", "queue_pending", "node_cpu", "gpu_user", "gpu")
 SCHEMA = {
     "user_cpu": "timestamp user node partition cpus_alloc mem_alloc_mb n_jobs job_ids".split(),
@@ -410,7 +410,8 @@ def analyze(store: LogStore, options=None):
     start, stop = opt.get("from"), opt.get("to")
     start = n["min"] if start is None else start
     stop = n["max"] if stop is None else stop
-    if stop <= start:
+    snapshot_only = bool(available["gpu"] and start == stop == n["min"] == n["max"])
+    if stop <= start and not snapshot_only:
         return dict(empty, error="집계에는 서로 다른 시각의 기록이 두 개 이상 필요합니다.")
     if (stop - start) / DAY > 3653:
         return dict(empty, error="한 번에 조회할 수 있는 기간은 최대 10년입니다.")
@@ -697,6 +698,11 @@ def analyze(store: LogStore, options=None):
 
     gpu_user_clock = clock_for("gpu_user", "gpu")
     gpu_user_ranges, allowed_gpu, gpu_users = defaultdict(list), set(), defaultdict(set)
+    for row in tables["gpu_user"]:
+        if start <= row["t"] <= stop and row["node"] in selected_nodes and user_match(row):
+            gid = row["node"] + "/GPU" + row["gpu_index"]
+            allowed_gpu.add(gid)
+            gpu_users[gid].add(row["user"])
     for a, b, row in intervals(tables["gpu_user"], lambda r: (r["node"], r["gpu_index"], r["pid"], r["user"], r["job_id"]),
                                gpu_user_clock, step, gpu_user_clock[-1] if gpu_user_clock else None):
         if row["node"] not in selected_nodes or not user_match(row):
@@ -720,6 +726,16 @@ def analyze(store: LogStore, options=None):
         if gid not in gpu_stats:
             gpu_stats[gid] = dict(fresh_stats(), id=gid, node=row["node"], name=row["gpu_name"], memMax=None)
         return gpu_stats[gid]
+
+    latest_gpu = {}
+    for row in tables["gpu"]:
+        gid = row["node"] + "/GPU" + row["gpu_index"]
+        if start <= row["t"] <= stop and row["node"] in selected_nodes and (not scoped or gid in allowed_gpu):
+            gpu_entry(row)
+            latest_gpu[gid] = dict(id=gid, node=row["node"], name=row["gpu_name"], t=row["t"],
+                                   purpose=purpose_for(inventory[row["node"]]["groups"], row["node"]),
+                                   util=row["gpu_util"], memPct=row["mem_pct"], temp=row["temp_c"], power=row["power_w"],
+                                   users=sorted(gpu_users[gid]))
 
     for a, b, row in intervals(tables["gpu"], lambda r: (r["node"], r["gpu_index"]),
                                times["gpu"], step, times["gpu"][-1] if times["gpu"] else None):
@@ -855,6 +871,8 @@ def analyze(store: LogStore, options=None):
     if scoped:
         notices.append("GPU 사용률·온도·전력은 선택 사용자가 사용한 장치 전체 값입니다.")
         notices.append("사용자 기여율의 분모는 선택 노드 전체 용량입니다. 사용자 기록이 빠진 가동 구간은 미관측입니다.")
+    if snapshot_only:
+        notices.append("단일 GPU 스냅샷입니다. 마지막 관측값만 표시하며 경과 시간·기간 평균·에너지를 추정하지 않습니다.")
     if opt["groups"]:
         notices.append("노드 그래프는 선택 partition 소속 물리 노드 전체이며 사용자별 집계에는 작업 partition도 적용합니다.")
     if calendar:
@@ -863,11 +881,12 @@ def analyze(store: LogStore, options=None):
         notices.append("node_cpu가 없어 전체 코어 용량과 노드 사용률·관측률은 계산할 수 없습니다.")
     if any(len(inventory[x]["groups"]) > 1 for x in selected_nodes):
         notices.append("여러 partition의 공통 노드는 그룹별 표에 중복될 수 있으나 전체 합계에서는 한 번만 계산합니다.")
-    return dict(empty=False, settings=opt, meta=store.describe(opt), **{"from": start, "to": stop},
+    return dict(empty=False, snapshotOnly=snapshot_only, settings=opt, meta=store.describe(opt), **{"from": start, "to": stop},
                 summary=summary, series=series, nodes=sorted(node_rows, key=lambda r: natural_key(r["name"])),
                 groups=sorted(group_rows, key=lambda r: r["name"]),
                 users=sorted(user_rows, key=lambda r: -(r["coreHours"] or r["gpuHours"] or 0)),
                 gpu=sorted(gpu_rows, key=lambda r: natural_key(r["id"])),
+                latestGpu=sorted(latest_gpu.values(), key=lambda r: natural_key(r["id"])),
                 jobs=sorted(visible, key=lambda r: -(r["start"] if r["start"] is not None else r["submit"] if r["submit"] is not None else r["last"] or 0)),
                 heat=[dict(node=h["node"], t=h["t"], value=ratio(h["core"], h["cap"]),
                            coverage=ratio(h["obs"], bucket_duration(h["t"]))) for h in heat.values()],
@@ -951,6 +970,8 @@ def table_csv(rows, columns, offset=540):
                 value = iso(value, offset).replace("T", " ")
             if fmt and fmt[0] == "minutes" and value is not None:
                 value /= 60
+            if isinstance(value, list):
+                value = ", ".join(map(str, value))
             if isinstance(value, str) and re.match(r"^\s*[=+\-@]", value):
                 value = "'" + value
             values.append("" if value is None else value)

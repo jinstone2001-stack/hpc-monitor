@@ -5,15 +5,16 @@ import math
 from colorsys import hls_to_rgb
 
 VIEWS = {
-    "overview": ("전체 현황", ["overview", "jobs", "rates", "node_heat", "user_core"]),
+    "overview": ("전체 현황", ["overview", "jobs", "rates", "usage_pie", "user_core"]),
     "nodes": ("노드별", ["node_heat", "node_pies", "node_core", "node_busy", "node_wait"]),
-    "groups": ("노드 그룹별", ["group_core", "group_rate", "group_wait"]),
+    "groups": ("노드 그룹별", ["group_pies", "group_core", "group_rate", "group_wait"]),
     "users": ("사용자별", ["user_core", "user_time", "user_gpu"]),
     "queue": ("작업·대기열", ["pending", "waiting", "node_wait", "group_wait", "reasons", "timeline"]),
-    "gpu": ("GPU", ["gpu_heat", "gpu_rate", "user_gpu", "gpu_power", "gpu_temp"]),
+    "gpu": ("GPU", ["gpu_latest", "gpu_heat", "gpu_rate", "user_gpu", "gpu_power", "gpu_temp"]),
     "data": ("로그·검증", ["quality"]),
 }
 PLOT_NAMES = dict(overview="주요 지표 모아보기", jobs="날짜별 작업 수", rates="할당·점유 추이",
+                  usage_pie="전체 사용률 원그래프", group_pies="그룹별 사용률 원그래프",
                   node_heat="노드별 할당률 지도", user_core="사용자별 코어 시간",
                   node_pies="노드별 사용률 원그래프", node_wait="노드별 평균·최대 시작 대기",
                   group_wait="그룹별 평균·최대 시작 대기",
@@ -22,6 +23,7 @@ PLOT_NAMES = dict(overview="주요 지표 모아보기", jobs="날짜별 작업 
                   user_time="사용자별 작업 시간", user_gpu="사용자별 GPU 점유",
                   pending="대기 작업 수 추이", waiting="시작 전 대기시간", reasons="대기 사유",
                   timeline="작업 실행 구간", gpu_heat="GPU별 사용률 지도",
+                  gpu_latest="GPU 마지막 관측 사용률",
                   gpu_rate="GPU 사용률 추이", gpu_power="GPU 평균 전력", gpu_temp="GPU 최대 온도",
                   quality="입력 로그 현황")
 
@@ -146,8 +148,22 @@ def figure_for(data, view="overview", plot=None, dark=False):
         ax.set_xlabel("Minutes · unique started jobs; top 15 by maximum wait", fontsize=8)
         ax.legend(fontsize=8, frameon=False, labelcolor=ink)
 
-    def node_pies():
-        rows = data.get("nodes", [])
+    def allocation_pie(ax, row, title):
+        value = row["allocPct"]
+        known = value is not None
+        clamped = max(0, min(100, value or 0))
+        color = hls_to_rgb((220 + 140 * clamped / 100) / 360, .47, .7)
+        ax.set_facecolor(bg)
+        ax.pie([clamped, 100 - clamped] if known else [0, 100],
+               colors=[color, line], startangle=90, counterclock=False,
+               wedgeprops=dict(width=.3, edgecolor=bg))
+        ax.text(0, 0, f"{value:.1f}%" if known else "No data", ha="center", va="center", color=color if known else muted, fontsize=15)
+        ax.set_title(title, color=ink, fontsize=10)
+        ax.text(.5, -.07, "Coverage: " + (f"{row['coverage']:.1f}%" if row["coverage"] is not None else "unknown"),
+                transform=ax.transAxes, ha="center", color=muted, fontsize=8)
+
+    def allocation_pies(table):
+        rows = data.get(table, [])
         if not rows:
             return empty(fig.add_subplot())
         columns = min(4, len(rows))
@@ -155,20 +171,14 @@ def figure_for(data, view="overview", plot=None, dark=False):
         fig.set_size_inches(11.5, max(5.7, count * 2.5))
         for index, row in enumerate(rows, 1):
             ax = fig.add_subplot(count, columns, index)
-            value = row["allocPct"]
-            known = value is not None
-            clamped = max(0, min(100, value or 0))
-            color = hls_to_rgb((220 + 140 * clamped / 100) / 360, .47, .7)
-            ax.pie([clamped, 100 - clamped] if known else [0, 100],
-                   colors=[color, line], startangle=90, counterclock=False,
-                   wedgeprops=dict(width=.3, edgecolor=bg))
-            ax.text(0, 0, f"{value:.1f}%" if known else "No data", ha="center", va="center", color=color if known else muted, fontsize=15)
-            ax.set_title(row_label(row), color=ink, fontsize=10)
-            ax.text(.5, -.07, "Coverage: " + (f"{row['coverage']:.1f}%" if row["coverage"] is not None else "unknown"),
-                    transform=ax.transAxes, ha="center", color=muted, fontsize=8)
-        fig.suptitle("Node core allocation · blue = low, red = high", color=ink, fontsize=12)
+            allocation_pie(ax, row, row_label(row))
+        fig.suptitle(("Node" if table == "nodes" else "Group") + " core allocation · blue = low, red = high", color=ink, fontsize=12)
 
     def draw(ax, name):
+        if name == "gpu_latest":
+            return bars(ax, data.get("latestGpu", []), "util", "Last observed GPU utilization (snapshot)", "%", "id")
+        if name == "usage_pie":
+            return allocation_pie(ax, data["summary"], "Overall core allocation · blue = low, red = high")
         if name == "jobs":
             return jobs(ax)
         if name == "rates":
@@ -232,10 +242,10 @@ def figure_for(data, view="overview", plot=None, dark=False):
         ax = fig.add_subplot()
         setup(ax, "HPC Monitor")
         empty(ax, data.get("error", "Load log files or use the built-in demo") if data else "Load log files or use the built-in demo")
-    elif plot == "node_pies":
-        node_pies()
+    elif plot in ("node_pies", "group_pies"):
+        allocation_pies("nodes" if plot == "node_pies" else "groups")
     elif plot == "overview":
-        for index, name in enumerate(("jobs", "rates", "user_core", "node_heat"), 1):
+        for index, name in enumerate(("jobs", "rates", "user_core", "usage_pie"), 1):
             draw(fig.add_subplot(2, 2, index), name)
     else:
         draw(fig.add_subplot(), plot)

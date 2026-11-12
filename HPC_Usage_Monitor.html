@@ -13,6 +13,7 @@
 @media(max-width:900px){.sidebar{position:relative;inset:auto;width:100%;padding:12px 17px 0}.brand{padding:0 0 12px;font-size:16px}.brand svg{width:26px;height:26px}.brand small{display:none}.nav-caption,.side-bottom{display:none}nav{flex-direction:row;overflow:auto;gap:4px;padding-bottom:8px}nav button{white-space:nowrap;padding:7px 10px;font-size:11px;gap:6px}nav button span{font-size:17px;width:16px}main{margin-left:0}.topbar{min-height:60px}.heading{margin-bottom:18px}.workspace{padding:23px 18px}.grid,.grid.equal{grid-template-columns:1fr}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.card-value{font-size:25px}.card-label{font-size:10px}.card-label .tiny-icon{display:none}.busy{left:50%;transform:translateX(-50%)}}
 @media(max-width:600px){.topbar{padding:12px 15px}.breadcrumb{display:none}.top-actions{width:100%;justify-content:flex-end}.workspace{padding:22px 14px}.heading h1{font-size:24px}.heading p{font-size:10px}.badge{font-size:9px;padding:5px 8px}.eyebrow{font-size:8px}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.card{min-height:106px}.card-value{font-size:29px}.filters{padding:12px;gap:8px}.period{flex:1 1 44%;min-width:0}.period input{min-width:0;font-size:10px;padding:6px}.filter{flex:1 1 30%;min-width:85px}.filter.small{flex:1 1 85px}.multi summary{max-width:none}.choices{min-width:200px}.filter:nth-of-type(5) .choices{left:auto;right:0}.range-caption{font-size:9px;display:block}.panel-head{padding:15px 14px 9px}.panel-body{padding:4px 10px 12px}.table-tools input{max-width:135px}.panel-head h2{font-size:12px}.chart{min-height:0}.data-types{grid-template-columns:repeat(2,minmax(0,1fr))}.footer{font-size:9px}.footer button{font-size:9px}.setting-label{display:block}.setting-label select,.setting-label input{display:block;margin-top:8px;max-width:100%;width:100%}.check{font-size:11px}dialog{padding:20px}.card-foot{font-size:9px}.panel-note{font-size:9px}.legend{font-size:9px;gap:10px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
+.graph-switch{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.graph-switch .primary{background:var(--accent);color:var(--panel)}.grid.single-chart{grid-template-columns:1fr}.help-toc{display:flex;flex-wrap:wrap;gap:8px 16px;margin:18px 0}.help-toc a{color:var(--accent)}.help-section{margin:22px 0}.help-section h3{font-size:14px;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -28,15 +29,15 @@
     <button data-tab="gpu"><span>▧</span>GPU</button>
     <button data-tab="data"><span>⇄</span>로그·검증</button>
   </nav>
-  <div class="side-bottom"><span class="local-dot"></span> 브라우저 내 로컬 분석<small>외부 전송 · 계정 연결 없음</small><div>v1.1 <button id="theme-button" class="theme-button" aria-label="화면 테마 전환">다크 모드</button></div></div>
+  <div class="side-bottom"><span class="local-dot"></span> 브라우저 내 로컬 분석<small>외부 전송 · 계정 연결 없음</small><div>v1.3 <button id="theme-button" class="theme-button" aria-label="화면 테마 전환">다크 모드</button></div></div>
 </aside>
 <main>
   <header class="topbar"><div class="breadcrumb">HPC 사용량 조회 <span>/</span> <span id="breadcrumb-current">전체 현황</span></div><div class="top-actions"><button id="settings-button" class="button subtle">설정</button><details class="export-menu"><summary class="button subtle">내보내기 ↓</summary><div><button id="export-csv">현재 집계 CSV</button><button id="export-session">통합 로그 JSON</button></div></details><button id="import-button" class="button primary">＋ 로그 불러오기</button></div></header>
   <div class="workspace">
     <div class="heading"><div><div class="eyebrow">CLUSTER INSIGHTS</div><h1 id="page-title">사용량 현황</h1><p id="page-subtitle">노드, 사용자, 작업의 사용 흐름을 한눈에 확인하세요.</p></div><span id="dataset-badge" class="badge">데이터 없음</span></div>
     <section class="filters" aria-label="조회 조건">
-      <div class="period"><label for="from">조회 시작</label><input id="from" type="datetime-local" step="60"></div>
-      <div class="period"><label for="to">조회 종료 <span title="집계 구간의 끝 시각은 포함하지 않습니다. 현황 상태는 이 시각의 스냅샷까지 확인합니다.">ⓘ</span></label><input id="to" type="datetime-local" step="60"></div>
+      <div class="period"><label for="from">조회 시작</label><input id="from" type="datetime-local" step="1" step="60"></div>
+      <div class="period"><label for="to">조회 종료 <span title="집계 구간의 끝 시각은 포함하지 않습니다. 현황 상태는 이 시각의 스냅샷까지 확인합니다.">ⓘ</span></label><input id="to" type="datetime-local" step="1" step="60"></div>
       <div class="filter"><label>노드 그룹</label><details id="filter-groups" class="multi"><summary>전체 그룹</summary><div class="choices"></div></details></div>
       <div class="filter"><label>노드</label><details id="filter-nodes" class="multi"><summary>전체 노드</summary><div class="choices"></div></details></div>
       <div class="filter"><label>사용자</label><details id="filter-users" class="multi"><summary>전체 사용자</summary><div class="choices"></div></details></div>
@@ -46,7 +47,7 @@
     <div id="range-caption" class="range-caption">탭으로 구분된 TSV · LOG · TXT 파일을 지원합니다.</div>
     <div id="notice" class="notice" hidden></div>
     <div id="view"></div>
-    <footer class="footer"><span>HPC Usage Monitor · 로그 기반 이력 분석</span><button id="method-button">집계 기준 보기 ⓘ</button></footer>
+    <footer class="footer"><span>HPC Usage Monitor · 로그 기반 이력 분석</span><button id="method-button">도움말 ⓘ</button></footer>
   </div>
 </main>
 <input type="file" id="file-input" multiple hidden>
@@ -65,9 +66,26 @@
   <label class="setting-label">파일 불러오기 방식<select id="setting-import"><option value="append">기존 데이터에 추가 · 중복 제거</option><option value="replace">기존 데이터 전체 교체</option></select></label>
   <div class="dialog-actions"><button type="button" class="button subtle" data-close="settings-dialog">취소</button><button type="submit" class="button primary">설정 적용</button></div>
 </form></dialog>
-<dialog id="method-dialog"><div class="dialog-title"><h2>집계 기준과 데이터 범위</h2><button data-close="method-dialog" aria-label="집계 기준 닫기">×</button></div><div id="method-content"></div><div class="dialog-actions"><button class="button primary" data-close="method-dialog">확인</button></div></dialog>
+<dialog id="method-dialog"><div class="dialog-title"><h2>도움말 · 기능과 계산 근거</h2><button data-close="method-dialog" aria-label="집계 기준 닫기">×</button></div><div id="method-content"></div><div class="dialog-actions"><button class="button primary" data-close="method-dialog">확인</button></div></dialog>
+<script id="hpc-help" type="application/json">
+[
+  {"title":"1. 시작하기와 파일 선택","paragraphs":["이 프로그램은 수집해 둔 HPC 로그를 분석합니다. 서버에 접속해 실시간 사용량을 수집하지는 않습니다. 로그 불러오기에서 여러 파일을 선택하거나 예제로 기능을 확인하세요. 예제는 실제 서버 데이터가 아닙니다.","X11은 폴더를 더블클릭해서 열고 ↑ 상위 폴더로 이동합니다. 경로 입력 후 Enter 또는 이동을 누릅니다. 상대 경로와 ..는 현재 폴더 기준, ~는 실행 계정의 홈입니다. Ctrl/Shift로 여러 파일을 선택하고 휠로 세로 스크롤합니다. Ctrl+L은 경로 입력란, Alt+위쪽·Alt+왼쪽·목록의 Backspace는 상위 폴더입니다.","Python 웹의 로그 불러오기는 Python 서버가 실행되는 컴퓨터의 폴더입니다. 내 PC 파일 선택은 브라우저가 실행되는 PC의 파일을 서버에 업로드합니다. 폴더·로그·통합 JSON은 색상·기호·종류 이름으로 구분합니다. 웹은 한 번에 최대 500개 파일, 기본 합계 128 MB이며 --max-upload-mb로 크기 제한을 변경합니다."]},
+  {"title":"2. 화면과 그래프 바로 전환","paragraphs":["전체 현황·노드별·노드 그룹별·사용자별·작업·대기열·GPU·로그·검증으로 자료를 나눠 봅니다. 그래프 이름 버튼을 한 번 누르면 바로 전환됩니다. 웹의 전체 차트 버튼은 해당 항목의 모든 차트를 함께 표시합니다. 상세 표는 같은 조회 조건을 유지합니다.","전체 현황은 작업 수, 할당·점유 추이, 사용자별 코어 시간과 전체 사용률 원그래프를 제공합니다. 노드 히트맵은 노드별 항목에서 확인합니다. 웹의 순위 막대·원그래프·히트맵 이름을 클릭하면 사용자·노드·그룹 필터를 적용합니다. Enter/Space로도 선택할 수 있습니다.","원그래프의 채운 부분은 코어 할당률, 회색 부분은 미할당 비율입니다. 낮으면 파랑, 높으면 빨강입니다. 0%는 관측된 미할당이고 기록 없음은 계산할 관측 구간이 없는 상태입니다. 관측률도 함께 확인하세요. 100%를 넘는 원본 수치는 숫자로 유지하되 원의 범위는 0~100%로 제한합니다."]},
+  {"title":"3. 지원 로그와 검증","paragraphs":["입력은 탭으로 구분된 TSV·LOG·TXT·CSV이며 일반 쉼표 CSV는 아닙니다. 확장자보다 헤더로 종류를 판별합니다. 여러 종류를 한 파일에 이어 붙일 때는 각 구간에 헤더가 있어야 합니다. UTF-8·BOM·따옴표 필드를 지원합니다.","user_cpu는 cpus_alloc·mem_alloc_mb·job_ids, node_cpu는 cpu_total·cpu_alloc·메모리·load_pct를 제공합니다. queue_started는 제출·시작 시각과 wait_sec·wait_min, queue_pending은 제출 정보·req_cpus·reason·priority를 제공합니다. gpu는 장치의 gpu_util·mem_pct·temp_c·power_w, gpu_user는 사용자·작업·프로세스와 mem_used_mb를 제공합니다.","여섯 종류가 모두 필요하지는 않습니다. gpu만 있으면 장치 측정값, gpu_user만 있으면 사용자 프로세스 점유를 조회합니다. 잘못된 시각·필수 식별자 누락은 행을 제외하고 잘못된 숫자·음수 자원량은 결측 처리합니다. 같은 식별자·시각의 중복은 제거하고 충돌은 나중에 읽은 값을 사용합니다. 로그·검증에서 행 수·중복·충돌·확인 사항을 보며 오류는 최대 300개를 표시합니다."]},
+  {"title":"4. 조회 기간·필터·집계 설정","paragraphs":["조회 구간은 시작 포함·종료 미포함 [시작, 종료)입니다. 최신 노드 상태와 GPU 마지막 관측값은 종료 시각의 기록까지 확인합니다. 그룹·노드·사용자는 다중 선택하며 선택이 없으면 전체입니다. 필터는 화면 이동 후에도 유지됩니다. 초기화는 전체 기간과 모든 필터를 복원합니다.","시간대 없는 시각은 기본 한국시간 UTC+09:00이고 설정에서 UTC로 바꿀 수 있습니다. 로그에 Z 또는 시차가 있으면 그 시차를 사용합니다. 기록 주기는 기본 30분이며 실제 수집 주기와 맞추세요. 시간별·일별·주별·월별은 표시 묶음으로, 보간이 아닙니다. 표시 구간이 240개를 넘으면 더 큰 단위로 조정하며 한 번의 조회는 최대 10년입니다.","관측시간 기준은 확인된 구간의 용량을 분모로 사용합니다. 전체 조회기간 기준은 전체 용량 × 조회기간이 분모여서 로그가 빠진 구간을 포함한 하한값입니다. 용량을 모르면 할당률을 계산할 수 없습니다. 사용자 기여율의 분모도 선택 노드 전체 용량입니다.","node_cpu 시각 연동은 사용자·대기 로그가 같은 주기의 전체 스냅샷이라는 가정입니다. 빈 행과 수집 실패를 완전히 구분하지 못합니다. queue_started가 실행 중 전체 목록이면 스냅샷, 새 시작 작업만 기록하면 시작 이벤트 모드를 사용합니다. 이벤트 모드에서는 별도 실행 관측 없는 작업의 실행 시간을 만들지 않습니다."]},
+  {"title":"5. 작업 수·시간·종료 추정","paragraphs":["제출 작업 수는 submit_time, 시작 작업 수는 start_time이 조회기간 안인 고유 작업 수입니다. 실행 작업 수는 추정 실행 구간이 기간과 겹치는 고유 작업 수입니다. job_id와 제출 시각을 함께 사용해 반복 스냅샷과 ID 재사용을 구분합니다. 다중 노드 작업은 전체에서 한 번 셉니다.","누적 작업 시간은 작업별 실행 구간을 합산합니다. 두 작업이 1시간씩 동시에 실행되면 2 job·h입니다. 사용자 활동시간과 노드 점유 시간은 겹친 실행 구간의 합집합입니다. 따라서 작업 시간 합계와 점유 시간은 다릅니다.","다음 스냅샷에서 작업이 사라지면 다음 확인 시각을 종료로 추정합니다. 소멸은 성공·실패·정상 완료를 보장하지 않습니다. 마지막 기록 이후는 연장하지 않으며 긴 공백은 최대 한 수집 주기만 적분합니다. 30분 사이에 시작하고 끝나 한 번도 기록되지 않은 작업은 복원할 수 없습니다."]},
+  {"title":"6. CPU·메모리·관측률 계산 근거","paragraphs":["코어 시간 = Σ(할당 코어 × 관측 초) ÷ 3600, 단위 core·h입니다. 32코어를 30분 할당하면 16 core·h입니다. 코어 할당률 = Σ(할당 코어 × 시간) ÷ Σ(전체 코어 × 시간) × 100입니다. 할당은 예약된 자원량이며 실제 CPU 연산 효율이 아닙니다.","작업 점유율은 cpu_alloc이 0보다 큰 구간의 시간 ÷ 기준 시간입니다. 메모리 할당률은 mem_alloc_mb ÷ mem_total_mb × 100의 시간 가중평균입니다. 사용자 필터는 동기화된 user_cpu 할당을 사용합니다. CPU load 비율은 로그의 load_pct를 시간 가중평균하며 사용자별로 임의 배분하지 않습니다.","노드 관측률 = 확인된 노드 시간 ÷ (선택 노드 수 × 조회기간) × 100입니다. 노드별은 해당 한 대의 기간을 분모로 사용합니다. GPU 관측률은 해당 장치의 관측 구간을 사용합니다. 관측률이 낮으면 0%와 미관측을 혼동하지 마세요."]},
+  {"title":"7. 그룹별 사용률과 계산 용도","paragraphs":["그룹은 partition·partitions 기준입니다. 그룹 원그래프도 할당 코어 시간 ÷ 전체 코어 시간으로 계산하며 노드별 백분율의 단순 평균이 아닙니다. 같은 시간 동안 64코어 노드가 50%, 128코어 노드가 100%면 그룹은 (32+128) ÷ (64+128) = 83.33%입니다.","g1·g1n·g2는 양자계산, g3·g4는 고체·MD로 표시합니다. 알려진 그룹이 없을 때는 g1n01·g3-01 같은 노드명 접두어도 확인합니다. 다른 이름은 미지정입니다. 이는 사용자가 지정한 용도 분류이며 계산 프로그램 종류를 자동 판별한 결과가 아닙니다.","공통 노드가 있는 partition 결과는 중복될 수 있습니다. 전체에서는 물리 노드를 한 번만 계산하므로 그룹 합계와 전체 합계가 다를 수 있습니다. 그룹 필터는 해당 partition 소속 물리 노드를 선택하고 사용자·작업 집계에는 작업 partition도 적용합니다."]},
+  {"title":"8. 사용자별 사용량·색상","paragraphs":["사용자 코어 시간은 user_cpu.cpus_alloc의 시간 적분입니다. 누적 작업 시간은 작업별 시간을 더하고 활동시간 비율은 실행 구간 합집합 ÷ 조회기간입니다. 여러 사용자가 동시에 실행하면 활동시간 비율의 합이 100%를 넘을 수 있습니다.","사용자 색은 같은 데이터의 전체 사용자 목록 기준이므로 필터·순위가 바뀌어도 유지합니다. 파일 추가로 사용자 목록이 바뀌면 색이 바뀔 수 있습니다. GPU·h는 같은 사용자·GPU의 프로세스 관측 구간 합집합이고 GPU 메모리 MB·h는 프로세스 mem_used_mb의 시간 적분입니다. 공유 장치에서는 사용자 GPU·h 합계가 장치 시간보다 클 수 있습니다."]},
+  {"title":"9. 시작 전 대기와 현재 대기열","paragraphs":["조회기간에 시작한 고유 작업의 wait_sec, 없으면 wait_min × 60, 둘 다 없으면 start_time − submit_time을 사용합니다. 0초는 유효하며 음수·미확인 대기는 제외합니다. 평균·최대·중앙값·표본 작업 수를 함께 확인하세요. 아직 시작하지 않은 작업은 이 통계에 포함하지 않습니다.","노드별 대기는 user_cpu.job_ids로 실행 노드가 확인된 작업만 포함합니다. 다중 노드 작업은 각 노드에 한 번, 전체에서는 한 번 포함합니다. 그룹별은 작업 partition 기준으로 그룹 안의 작업 중복을 제거합니다. 노드 미확인 작업도 전체·그룹에는 들어갈 수 있어 표본 합계가 다를 수 있습니다.","구간별 대기 작업 최대는 각 시점의 고유 대기 작업 수 중 최댓값으로 반복 기록의 합이 아닙니다. 대기 사유·priority·요청 코어는 마지막 확인 대기열의 원본 값입니다. 아직 노드 미배정인 대기 작업은 특정 노드 필터로 조회할 수 없습니다."]},
+  {"title":"10. GPU 조회와 마지막 관측값","paragraphs":["GPU는 node + gpu_index로 구분합니다. 마지막 관측 사용률은 선택 기간에 각 장치에서 마지막으로 읽은 gpu_util과 그 관측 시각입니다. 한 시점뿐이어도 스냅샷은 표시하며 이를 실시간 현재 값으로 간주하지 마세요.","평균 GPU 사용률 = Σ(gpu_util × 관측 초) ÷ Σ(유효 관측 초)입니다. 평균 메모리 비율·전력도 시간 가중 방식이고 에너지는 Σ(power_w × 초) ÷ 3600 Wh입니다. 최대 온도는 기간 내 temp_c 최댓값입니다. 한 시점뿐이면 경과 시간이 없어 평균·점유시간·에너지를 확정하지 않고 — 또는 기록 없음으로 표시합니다.","gpu는 장치 값, gpu_user는 사용자 프로세스 연결 정보입니다. 사용자 필터에서는 선택 사용자가 관측된 장치만 표시하며 단일 관측도 연결 근거로 사용합니다. 사용률·온도·전력은 해당 장치 전체 값이며 사용자별 계산 사용률을 메모리 비중으로 나누지 않습니다.","GPU 화면이 비면 로그·검증의 gpu·gpu_user 행 수, 조회 기간, 그룹·노드·사용자 필터를 확인하고 초기화로 조건을 해제하세요. gpu_user만으로 장치 사용률·온도·전력을 복원할 수 없고 gpu만으로 사용자 프로세스 점유를 복원할 수 없습니다."]},
+  {"title":"11. 히트맵·순위·타임라인·상세 표","paragraphs":["노드 히트맵은 기간별 코어 할당률, GPU 히트맵은 기간별 gpu_util 시간 가중평균입니다. 기록 없음과 0%를 구분하고 웹의 주황 표시는 부분 관측입니다. X11 히트맵은 최대 80행이므로 많은 노드는 필터로 나눠 보세요.","순위는 웹 상위 12개, X11 상위 15개입니다. 대기 비교는 최대 대기로 정렬하고 평균과 최대를 함께 표시합니다. 전체 자료는 표·CSV에 있습니다. 타임라인은 관측 실행 구간만 표시하며 공백을 연결하지 않습니다. 웹은 최근 최대 35개, X11은 최대 25개 작업입니다.","표의 열 제목으로 정렬하고 이전·다음으로 페이지를 옮깁니다. 웹 작업 이력과 X11 상세 표는 검색할 수 있습니다. X11 행을 더블클릭하면 전체 필드를 봅니다. Matplotlib 도구 모음은 확대·이동·보기 복원 기능이며 많은 노드·그룹 원그래프는 세로 스크롤합니다."]},
+  {"title":"12. CSV·PNG·JSON 저장과 데이터 관리","paragraphs":["CSV는 현재 항목의 표와 조회 조건을 내보내며 대기 열은 분 단위입니다. GPU 마지막 관측 차트를 선택하면 스냅샷 표를, 다른 GPU 차트에서는 기간 집계표를 저장합니다. 통합 JSON의 원본 대기는 초 단위를 유지합니다. CSV는 UTF-8 BOM을 사용하고 수식으로 해석될 수 있는 텍스트 앞에 작은따옴표를 붙입니다. PNG는 현재 그래프 이미지이며 원본 로그를 대신하지 않습니다.","통합 JSON은 여섯 종류의 원본 기록·집계 설정·예제 표시를 보존합니다. 1.0·1.1 JSON도 다시 읽을 수 있습니다. 파일 추가는 중복을 제거하며 이어 붙이고 교체 모드는 현재 데이터 대신 새 입력을 사용합니다. 예제에서 실제 파일을 읽으면 예제를 교체합니다. 웹의 데이터 비우기는 메모리 세션을 지우므로 필요한 자료는 먼저 JSON으로 저장하세요.","로그는 자동 저장하지 않습니다. HTML은 브라우저 내부, Python 웹은 실행 서버 메모리에서 계산합니다. X11·웹은 동일 Python 엔진이고 HTML은 같은 기준의 JavaScript 엔진입니다. 근거 구현은 hpc_monitor_core.py의 analyze·intervals·merge_ranges·splits와 HTML의 hpc-engine입니다. tests/test_monitor.py에서 경계 조건과 Python/JavaScript 결과를 비교합니다."]},
+  {"title":"13. 도움말·테마·실행 환경·분석 한계","paragraphs":["도움말은 데이터가 없어도 열립니다. X11 도움말 버튼·도움말·검증 탭 또는 웹 도움말 버튼을 사용하세요. 현재 조회의 확인 사항과 입력 오류도 제공합니다. 다크 모드는 표시만 바꿉니다. 웹 설정은 브라우저에 저장하지만 로그 자체는 저장하지 않습니다.","웹 기본 주소는 127.0.0.1입니다. 원격 HPC에서는 SSH 포트 전달 후 PC 브라우저로 엽니다. X11은 Tkinter·Matplotlib와 디스플레이 또는 SSH X11 포워딩이 필요합니다. 웹은 Node.js·Flask·X11 없이 실행됩니다. 외부에 공개하면 같은 로그 세션과 실행 계정이 읽을 수 있는 서버 폴더를 접속자가 볼 수 있으므로 개인 분석에는 기본 로컬 주소와 SSH 터널을 사용하세요.","수집되지 않은 노드·짧은 작업·실제 CPU 계산 효율·정확한 종료와 성공 여부는 추가 기록 없이 알 수 없습니다. 기록 주기·시간대를 실제 수집 환경과 맞추고 미관측률과 원본 상태를 함께 확인하세요."]}
+]
+</script>
 <script id="hpc-engine" type="text/plain">'use strict';
-/* HPC Usage Monitor 1.1 — standalone, no network dependencies. */
+/* HPC Usage Monitor 1.3 — standalone, no network dependencies. */
 const HPC = (() => {
   const TYPES = ['user_cpu','queue_started','queue_pending','node_cpu','gpu_user','gpu'];
   const SCHEMA = {
@@ -251,7 +269,8 @@ const HPC = (() => {
     const empty={empty:true,meta:metadata(store,n),settings:opt};
     if(n.min===null)return empty;
     const from=Number.isFinite(opt.from)?opt.from:n.min,to=Number.isFinite(opt.to)?opt.to:n.max;
-    if(!(to>from))return {...empty,error:'집계에는 서로 다른 시각의 기록이 두 개 이상 필요합니다. 종료 시각은 시작 시각보다 뒤여야 합니다.'};
+    const snapshotOnly=available.gpu&&from===to&&from===n.min&&to===n.max;
+    if(!(to>from)&&!snapshotOnly)return {...empty,error:'집계에는 서로 다른 시각의 기록이 두 개 이상 필요합니다. 종료 시각은 시작 시각보다 뒤여야 합니다.'};
     if((to-from)/DAY>3653)return {...empty,error:'한 번에 조회할 수 있는 기간은 최대 10년입니다.'};
     if(opt.bucket==='hour'&&(to-from)/HOUR>240)opt.bucket='day';
     if(opt.bucket==='day'&&(to-from)/DAY>240)opt.bucket='week';
@@ -389,12 +408,22 @@ const HPC = (() => {
     for(const [t,set] of pendingSamples)day(t).pendingMax=Math.max(day(t).pendingMax,set.size);
     const gpuUserInt=intervals(T.gpu_user,r=>JSON.stringify([r.node,r.gpu_index,r.pid,r.user,r.job_id]),opt.nodeClock?[...new Set([...n.times.gpu_user,...n.times.gpu])].sort((a,b)=>a-b):n.times.gpu_user,step,opt.nodeClock?Math.max(n.times.gpu_user.at(-1)??-Infinity,n.times.gpu.at(-1)??-Infinity):n.times.gpu_user.at(-1));
     const userGPURanges=new Map(),allowedGPUs=new Set(),gpuMem=new Map();
+    for(const r of T.gpu_user)if(r.t>=from&&r.t<=to&&selected.has(r.node)&&userMatch(r)){
+      const gid=r.node+'/GPU'+r.gpu_index;allowedGPUs.add(gid);
+      add(gpuMem,gid,()=>({memSec:0,processSec:0,users:new Set()})).users.add(r.user);
+    }
     for(const it of gpuUserInt){const r=it.r;if(!selected.has(r.node)||!userMatch(r))continue;const [a,b]=clip(it.a,it.b);if(b<=a)continue;
       const u=add(userStats,r.user,stats),sec=(b-a)/1000;u.nodes.add(r.node);if(r.mem_used_mb!==null){u.gpuMemSec+=r.mem_used_mb*sec;u.gpuWeight+=sec;}
       const gid=r.node+'/GPU'+r.gpu_index;allowedGPUs.add(gid);add(userGPURanges,JSON.stringify([r.user,gid]),()=>[]).push([a,b]);
       const gm=add(gpuMem,gid,()=>({memSec:0,processSec:0,users:new Set()}));gm.users.add(r.user);if(r.mem_used_mb!==null)gm.memSec+=r.mem_used_mb*sec;gm.processSec+=sec;
     }
     for(const [key,ranges]of userGPURanges){const [user]=JSON.parse(key);add(userStats,user,stats).gpuDeviceSec=(userStats.get(user).gpuDeviceSec||0)+seconds(ranges);}
+    const latestGpu=new Map();
+    for(const r of T.gpu)if(r.t>=from&&r.t<=to&&selected.has(r.node)){
+      const gid=r.node+'/GPU'+r.gpu_index;if(filteringUsers&&!allowedGPUs.has(gid))continue;
+      add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));
+      latestGpu.set(gid,{id:gid,node:r.node,name:r.gpu_name,t:r.t,purpose:purposeFor(n.nodes.get(r.node)?.groups||[],r.node),util:r.gpu_util,memPct:r.mem_pct,temp:r.temp_c,power:r.power_w,users:[...(gpuMem.get(gid)?.users||[])]});
+    }
     const gpuInt=intervals(T.gpu,r=>r.node+'/GPU'+r.gpu_index,n.times.gpu,step,n.times.gpu.at(-1));
     for(const it of gpuInt){const r=it.r,gid=r.node+'/GPU'+r.gpu_index;if(!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const [a,b]=clip(it.a,it.b);if(b<=a)continue;
       const g=add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));
@@ -417,13 +446,13 @@ const HPC = (() => {
     const gpu=[...gpuStats.values()].map(g=>({id:g.id,node:g.node,name:g.name,purpose:purposeFor(n.nodes.get(g.node)?.groups||[],g.node),util:g.gpuWeight?g.gpuSec/g.gpuWeight:null,memPct:g.memWeight?g.memSec/g.memWeight:null,tempMax:g.tempMax,power:g.powerWeight?g.powerSec/g.powerWeight:null,energyWh:g.powerWeight?g.powerSec/3600:null,memMax:g.memMax,coverage:ratio(g.observed,rangeSec),users:[...(gpuMem.get(g.id)?.users||[])].join(', ')}));
     const activeClockRows=T.node_cpu.filter(r=>r.t>=from&&r.t<=to&&selected.has(r.node)),lastNodeTs=activeClockRows.at(-1)?.t;
     const latestNodes=lastNodeTs!==undefined?activeClockRows.filter(r=>r.t===lastNodeTs).map(r=>({node:r.node,state:r.state,cpu:r.cpu_alloc,total:r.cpu_total,mem:r.mem_pct})):[]; 
-    return {empty:false,settings:opt,meta:metadata(store,n),from,to,summary:{submitted:available.queue_pending||available.queue_started?submitted:null,started:available.queue_started?started:null,running:hasJobEvidence?running:null,jobHours:hasJobEvidence?totalJobSec/3600:null,inferredEnded,coreHours:filteringUsers&&!available.user_cpu?null:available.node_cpu?cores/3600:available.user_cpu?users.reduce((s,u)=>s+(u.coreHours||0),0):null,busyPct:ratio(busy,opt.denominator==='calendar'?fullNode:observed),coveredBusyPct:ratio(busy,observed),allocPct:ratio(cores,opt.denominator==='calendar'?fullCore:capacity),coverage:ratio(observed,fullNode),nodes:nodeNames.length,users:users.length,waitMedian:med(waits),...waitStats(waits),pending:opt.nodes?.length||!available.queue_pending?null:pendingAt.size,gpuUtil:(()=>{let v=0,w=0;for(const g of gpuStats.values()){v+=g.gpuSec;w+=g.gpuWeight;}return w?v/w:null;})()},
+    return {empty:false,snapshotOnly,settings:opt,meta:metadata(store,n),from,to,summary:{submitted:available.queue_pending||available.queue_started?submitted:null,started:available.queue_started?started:null,running:hasJobEvidence?running:null,jobHours:hasJobEvidence?totalJobSec/3600:null,inferredEnded,coreHours:filteringUsers&&!available.user_cpu?null:available.node_cpu?cores/3600:available.user_cpu?users.reduce((s,u)=>s+(u.coreHours||0),0):null,busyPct:ratio(busy,opt.denominator==='calendar'?fullNode:observed),coveredBusyPct:ratio(busy,observed),allocPct:ratio(cores,opt.denominator==='calendar'?fullCore:capacity),coverage:ratio(observed,fullNode),nodes:nodeNames.length,users:users.length,waitMedian:med(waits),...waitStats(waits),pending:opt.nodes?.length||!available.queue_pending?null:pendingAt.size,gpuUtil:(()=>{let v=0,w=0;for(const g of gpuStats.values()){v+=g.gpuSec;w+=g.gpuWeight;}return w?v/w:null;})()},
       series:[...daily.values()].sort((a,b)=>a.t-b.t).map(d=>({t:d.t,submitted:available.queue_pending||available.queue_started?d.submitted.size:null,started:available.queue_started?d.started.size:null,running:hasJobEvidence?d.running.size:null,jobHours:hasJobEvidence?d.jobSec/3600:null,coreHours:d.capacitySec||!available.node_cpu&&available.user_cpu?d.coreSec/3600:null,busyPct:ratio(d.busy,d.observed),allocPct:ratio(d.coreSec,d.capacitySec),pendingMax:available.queue_pending&&!opt.nodes?.length?d.pendingMax:null,gpuUtil:d.gpuWeight?d.gpuSec/d.gpuWeight:null,waitMedian:med(d.wait),...waitStats(d.wait)})),
       nodes:ns.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true})),groups,users,gpu,jobs:visibleJobs.sort((a,b)=>(b.start??b.submit??b.last??0)-(a.start??a.submit??a.last??0)),
       heat:[...heat.values()].map(h=>({node:h.node,t:h.t,value:ratio(h.core,h.cap),coverage:ratio(h.obs,(Math.min(to,nextBucket(h.t,opt.bucket,opt.offset))-Math.max(from,h.t))/1000)})),
       gpuHeat:[...gpuHeat.values()].map(h=>({node:h.node,t:h.t,value:h.weight?h.value/h.weight:null,coverage:ratio(h.weight,(Math.min(to,nextBucket(h.t,opt.bucket,opt.offset))-Math.max(from,h.t))/1000)})),
       reasons:[...reason].map(([name,count])=>({name,count})),pendingRows:[...pendingAt.values()].map(j=>({id:j.id,user:j.user,partition:j.partition,cpus:j.pendingRecord.req_cpus,waitMin:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(j.submit!==null?(lastQueue-j.submit)/1000:null)))===null?null:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(lastQueue-j.submit)/1000))/60,reason:j.pendingRecord.reason,priority:j.pendingRecord.priority})),
-      latestNodes,lastQueue,lastNodeTs,
+      latestNodes,latestGpu:[...latestGpu.values()].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})),lastQueue,lastNodeTs,
       notices:[
         '30분 사이에 시작하고 끝난 작업은 로그에 잡히지 않을 수 있습니다. 제출·시작 건수는 관측된 작업 기준입니다.',
         '작업 소멸은 종료로 추정하며 성공·실패를 의미하지 않습니다. 종료 시각은 다음 확인 기록 시각, 오차는 최대 기록 주기 수준입니다.',
@@ -485,6 +514,15 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   const f=(v,n=1)=>v===null||v===undefined||!Number.isFinite(Number(v))?'—':Number(v).toLocaleString('ko-KR',{maximumFractionDigits:n,minimumFractionDigits:0});
   const titles={overview:['사용량 현황','노드, 사용자, 작업의 사용 흐름을 한눈에 확인하세요.'],nodes:['노드별 사용량','노드 간 할당량과 유휴 구간, 기록 공백을 비교하세요.'],groups:['노드 그룹별 사용량','직접 지정한 partition을 기준으로 자원 분배를 확인하세요.'],users:['사용자별 사용량','작업 시간과 코어·GPU 사용 규모를 함께 확인하세요.'],queue:['작업·대기열','관측된 제출·시작 이력과 대기 작업을 조회하세요.'],gpu:['GPU 사용량','장치별 사용률과 사용자별 GPU 점유를 구분해 확인하세요.'],data:['로그·검증','입력 파일, 지원 지표, 중복 기록과 오류를 확인하세요.']};
   const typeNames={user_cpu:'사용자별 CPU 할당',queue_started:'시작 작업·대기시간',queue_pending:'대기열·요청 자원',node_cpu:'노드 CPU·메모리',gpu_user:'GPU 사용자·프로세스',gpu:'GPU 장치 사용량'};
+  const HELP_SECTIONS=JSON.parse($('#hpc-help').textContent);
+  const CHARTS={
+    overview:[['daily-count','작업 수'],['daily-rate','할당·점유 추이'],['user-rank','사용자별 코어 시간'],['daily-time','누적 작업 시간'],['usage-pie','전체 사용률 원그래프']],
+    nodes:[['node-pies','사용률 원그래프'],['node-heat','할당률 지도'],['node-rank','코어 시간'],['node-busy','작업 점유율'],['node-wait','평균·최대 시작 대기']],
+    groups:[['group-pies','그룹별 사용률 원그래프'],['group-rank','코어 시간'],['group-rate','코어 할당률'],['group-wait','평균·최대 시작 대기']],
+    users:[['user-rank','코어 시간'],['user-time','작업 시간'],['gpu-user-rank','GPU 점유시간']],
+    queue:[['pending-trend','대기 작업 수'],['wait-trend','시작 대기시간'],['pending-reasons','대기 사유'],['job-timeline','작업 타임라인']],
+    gpu:[['gpu-latest','마지막 관측 사용률'],['gpu-heat','사용률 지도'],['gpu-trend','기간 평균 추이'],['gpu-user-rank','사용자 점유시간']]
+  };
   let api,worker,workerURL,request=0,waiting=new Map(),localState;
   const engineText=$('#hpc-engine').textContent;
   const handler='let store=HPC.createStore(),last=null;\n'+(async function run(m,emit){
@@ -519,7 +557,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   }
   const codec=localState||new Function(engineText+'\nreturn {iso:HPC.iso,time:HPC.time,defaults:HPC.defaults};')();
   let saved={};try{saved=JSON.parse(localStorage.getItem('hpc-monitor-settings')||'{}');}catch{}
-  const S={tab:'overview',data:null,meta:null,loading:false,options:{...codec.defaults,...saved,groups:[],nodes:[],users:[],from:null,to:null},importMode:saved.importMode||'append',theme:saved.theme||'light',tablePages:{},tableSort:{},jobPage:0,jobQuery:'',jobSort:'start',jobDir:-1,jobRows:[],jobTotal:0};
+  const S={tab:'overview',charts:{gpu:'gpu-latest'},data:null,meta:null,loading:false,options:{...codec.defaults,...saved,groups:[],nodes:[],users:[],from:null,to:null},importMode:saved.importMode||'append',theme:saved.theme||'light',tablePages:{},tableSort:{},jobPage:0,jobQuery:'',jobSort:'start',jobDir:-1,jobRows:[],jobTotal:0};
   if(![0,540].includes(+S.options.offset))S.options.offset=540;
   S.options.interval=Math.max(1,Math.min(1440,+S.options.interval||30));
   if(S.theme==='dark')document.body.classList.add('dark');
@@ -530,7 +568,13 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   const stamp=t=>t===null||t===undefined?'—':codec.iso(t,+S.options.offset).replace('T',' ');
   const shortDate=t=>{const s=codec.iso(t,+S.options.offset);return S.data?.settings.bucket==='hour'?s.slice(5,10)+' '+s.slice(11,16):s.slice(5,10);};
   const C=()=>{const s=getComputedStyle(document.body);return {ink:s.getPropertyValue('--ink').trim(),muted:s.getPropertyValue('--muted').trim(),line:s.getPropertyValue('--line').trim(),accent:s.getPropertyValue('--accent').trim(),blue:s.getPropertyValue('--chart-blue').trim(),orange:s.getPropertyValue('--chart-orange').trim(),panel:s.getPropertyValue('--panel').trim()};};
-  function panel(id,title,sub,body,extra=''){return '<section class="panel"><div class="panel-head"><div><h2>'+esc(title)+'</h2><p>'+esc(sub)+'</p></div><div class="toolbar-inline">'+extra+(id?'<button class="panel-action" data-png="'+esc(id)+'" title="그래프를 PNG 이미지로 저장">PNG ↓</button>':'')+'</div></div><div class="panel-body">'+body+'</div></section>';}
+  function panel(id,title,sub,body,extra=''){return '<section class="panel"'+(id?' data-chart="'+esc(id)+'"':'')+'><div class="panel-head"><div><h2>'+esc(title)+'</h2><p>'+esc(sub)+'</p></div><div class="toolbar-inline">'+extra+(id?'<button class="panel-action" data-png="'+esc(id)+'" title="그래프를 PNG 이미지로 저장">PNG ↓</button>':'')+'</div></div><div class="panel-body">'+body+'</div></section>';}
+  function selectChart(){
+    const selected=S.charts[S.tab]||'all';
+    $$('#view [data-chart]').forEach(panel=>panel.hidden=selected!=='all'&&panel.dataset.chart!==selected);
+    $$('#view .grid').forEach(grid=>{grid.hidden=![...grid.children].some(panel=>!panel.hidden);grid.classList.toggle('single-chart',selected!=='all');});
+    $$('#view [data-chart-select]').forEach(button=>{const active=button.dataset.chartSelect===selected;button.setAttribute('aria-pressed',String(active));button.classList.toggle('primary',active);});
+  }
   const noChart=message=>'<div class="chart-empty">'+esc(message||'집계할 기록이 없습니다.')+'<span>로그 종류와 조회 조건을 확인하세요.</span></div>';
   function card(label,value,unit,foot,icon,highlight=false){return '<article class="card'+(highlight?' highlight':'')+'"><div class="card-label">'+esc(label)+'<span class="tiny-icon" aria-hidden="true">'+icon+'</span></div><div class="card-value">'+esc(value)+(unit?'<small>'+esc(unit)+'</small>':'')+'</div><div class="card-foot">'+esc(foot)+'</div></article>';}
   function legend(series){return '<div class="legend">'+series.map(s=>'<span><i style="background:'+s.color+'"></i>'+esc(s.label)+'</span>').join('')+'</div>';}
@@ -570,7 +614,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     data.forEach((r,i)=>{
       const y=14+i*(h-27)/data.length,bw=r[key]/max*iw,name=String(r[labelKey]),label=name+(r.purpose?' · '+r.purpose:'');
       const color=filterKind==='users'?'hsl('+((Math.max(0,users.indexOf(name))*.61803398875%1)*360)+',60%,47%)':c.accent;
-      svg+='<g'+(filterKind?' data-pick="'+filterKind+'" data-value="'+esc(name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"':'')+'><text x="'+(left-10)+'" y="'+(y+14)+'" text-anchor="end" fill="'+c.ink+'" font-size="11">'+esc(label.length>25?label.slice(0,24)+'…':label)+'</text><rect x="'+left+'" y="'+y+'" width="'+iw+'" height="21" rx="3" fill="'+c.line+'" opacity=".45"/><rect x="'+left+'" y="'+y+'" width="'+Math.max(0,bw)+'" height="21" rx="3" fill="'+color+'"/><text x="'+(left+iw+9)+'" y="'+(y+14)+'" fill="'+c.ink+'" font-size="10">'+f(r[key],1)+'</text><title>'+esc(label+': '+f(r[key],2)+' '+unit)+'</title></g>';
+      svg+='<g'+(filterKind?' data-pick="'+filterKind+'" data-value="'+esc(name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"':'')+'><text x="'+(left-10)+'" y="'+(y+14)+'" text-anchor="end" fill="'+c.ink+'" font-size="11">'+esc(label.length>25?label.slice(0,24)+'…':label)+'</text><rect x="'+left+'" y="'+y+'" width="'+iw+'" height="21" rx="3" fill="'+c.line+'" opacity=".45"/><rect x="'+left+'" y="'+y+'" width="'+Math.max(0,bw)+'" height="21" rx="3" fill="'+color+'"/><text x="'+(left+iw+9)+'" y="'+(y+14)+'" fill="'+c.ink+'" font-size="10">'+f(r[key],1)+'</text><title>'+esc(label+': '+f(r[key],2)+' '+unit+(r.t==null?'':' · '+stamp(r.t)))+'</title></g>';
     });
     svg+='</svg>';return '<div class="chart">'+svg+'</div><div class="panel-note">상위 12개 · '+esc(unit)+(filterKind?' · 항목을 클릭해 필터링':'')+'</div>';
   }
@@ -589,18 +633,19 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     });
     return legend([{label:'평균 대기 · min',color:c.blue},{label:'최대 대기 · min',color:c.orange}])+'<div class="chart">'+svg+'</svg></div><div class="panel-note">최대 대기시간 상위 12개 · 조회기간에 시작한 고유 작업 기준</div>';
   }
-  function nodePies(id,rows){
+  function allocationPies(id,rows,kind='nodes'){
     if(!rows.length)return noChart();
     const c=C(),cols=Math.min(window.innerWidth<=600?1:4,rows.length),w=cols*250,h=Math.ceil(rows.length/cols)*235+12,radius=57,circumference=2*Math.PI*radius;
-    let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="노드별 코어 할당률 원그래프"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
+    let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="코어 할당률 원그래프"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
     rows.forEach((row,i)=>{
       const x=(i%cols)*250+125,y=Math.floor(i/cols)*235+112,value=row.allocPct,known=Number.isFinite(value),clamped=Math.max(0,Math.min(100,value||0)),color='hsl('+(220+140*clamped/100)+',70%,47%)';
       const label=row.name+' · '+row.purpose+' · '+(known?f(value,1)+'%':'기록 없음');
-      svg+='<g data-pick="nodes" data-value="'+esc(row.name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"><title>'+esc(label)+'</title><text x="'+x+'" y="'+(y-86)+'" text-anchor="middle" fill="'+c.ink+'" font-size="16" font-weight="bold">'+esc(row.name)+'</text><text x="'+x+'" y="'+(y-65)+'" text-anchor="middle" fill="'+c.muted+'" font-size="12">'+esc(row.purpose)+'</text><circle cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="none" stroke="'+c.line+'" stroke-width="17"'+(known?'':' stroke-dasharray="3 5"')+'/>';
+      const action=kind?'data-pick="'+kind+'" data-value="'+esc(row.name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"':'role="img" aria-label="'+esc(label)+'"';
+      svg+='<g '+action+'><title>'+esc(label)+'</title><text x="'+x+'" y="'+(y-86)+'" text-anchor="middle" fill="'+c.ink+'" font-size="16" font-weight="bold">'+esc(row.name)+'</text><text x="'+x+'" y="'+(y-65)+'" text-anchor="middle" fill="'+c.muted+'" font-size="12">'+esc(row.purpose)+'</text><circle cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="none" stroke="'+c.line+'" stroke-width="17"'+(known?'':' stroke-dasharray="3 5"')+'/>';
       if(known)svg+='<circle cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="none" stroke="'+color+'" stroke-width="17" stroke-dasharray="'+(circumference*clamped/100)+' '+circumference+'" transform="rotate(-90 '+x+' '+y+')"/>';
       svg+='<text x="'+x+'" y="'+(y+7)+'" text-anchor="middle" fill="'+(known?color:c.muted)+'" font-size="23" font-weight="bold">'+(known?f(value,1)+'%':'기록 없음')+'</text><text x="'+x+'" y="'+(y+86)+'" text-anchor="middle" fill="'+c.muted+'" font-size="11">관측률 '+f(row.coverage,1)+'%</text></g>';
     });
-    return '<div class="legend"><span><i style="background:hsl(220,70%,47%)"></i>낮은 할당률</span><span><i style="background:hsl(360,70%,47%)"></i>높은 할당률</span><span>회색 원: 미할당 · 점선: 기록 없음</span></div><div class="chart">'+svg+'</svg></div>';
+    return '<div class="legend"><span><i style="background:hsl(220,70%,47%)"></i>낮은 할당률</span><span><i style="background:hsl(360,70%,47%)"></i>높은 할당률</span><span>회색 원: 미할당 · 점선: 기록 없음</span></div><div class="chart"'+(rows.length===1?' style="max-width:340px;margin:auto"':'')+'>'+svg+'</svg></div>';
   }
   function heatmap(id,records,names,gpu=false){
     if(!records.length||!names.length)return noChart();const c=C(),dates=S.data.series.map(r=>r.t),lookup=new Map(records.map(r=>[r.node+'|'+r.t,r])),left=gpu?250:205,cw=Math.max(19,Math.min(65,760/Math.max(1,dates.length))),rh=26,w=Math.max(600,left+dates.length*cw+20),h=45+names.length*rh;
@@ -629,6 +674,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     issues:[['file','파일'],['line','행','n0'],['message','확인 내용']],
     daily:[['t','구간 시작','time'],['submitted','제출 작업 수','n0'],['started','시작 작업 수','n0'],['running','실행 작업 수','n0'],['jobHours','추정 작업 시간 · h','n2'],['coreHours','코어 시간 · core·h','n2'],['allocPct','코어 할당률','pct'],['busyPct','작업 점유율','pct'],['gpuUtil','GPU 사용률','pct'],['pendingMax','대기 작업 최대','n0']]
   };
+  COLS.latestGpu=[['id','GPU'],['node','노드'],['purpose','계산 용도'],['t','마지막 관측 시각','time'],['util','관측 사용률','pct'],['memPct','관측 메모리 비율','pct'],['temp','관측 온도 · °C','n1'],['power','관측 전력 · W','n1'],['users','관측 사용자']];
   for(const name of ['nodes','groups','daily'])COLS[name].push(['waitCount','대기 표본 작업 수','n0'],['waitMean','평균 시작 대기 · min','minutes'],['waitMax','최대 시작 대기 · min','minutes']);
   for(const name of ['nodes','groups','gpu'])COLS[name].splice(2,0,['purpose','계산 용도']);
   function cell(v,type){
@@ -664,15 +710,16 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
       html='<div class="cards">'+card('관측된 실행 작업',f(s.running,0),'건','같은 작업은 기간 안에서 한 번만','▤')+card('관측된 제출 작업',f(s.submitted,0),'건','submit_time 기준 · 중복 제거','↗')+card('코어 시간',f(s.coreHours),'core·h','할당 코어 수 × 기록 사이의 시간','◷',true)+card('작업 점유율 · 추정',f(s.busyPct),'%',rateFoot,'◔',true)+card('누적 작업 시간 · 추정',f(s.jobHours),'h','동시 실행 작업의 시간은 각각 합산','≋')+card('코어 할당률',f(s.allocPct),'%','선택한 노드 전체 코어 용량 기준','▦')+card('평균 시작 전 대기',f(s.waitMean===null?null:s.waitMean/60),'min','시작 작업 기준 · 대기 중 작업 제외','⌛')+card('최대 시작 전 대기',f(s.waitMax===null?null:s.waitMax/60),'min',f(s.waitCount,0)+'개 작업의 대기시간 확인','⌛')+card('기록 관측률',f(s.coverage),'%','선택 기간 중 노드 기록이 확인된 비율','⌁')+'</div>';
       html+='<div class="grid">'+panel('daily-count','날짜별 작업 수','제출·시작은 해당 시각 기준 · 실행은 구간과 겹친 고유 작업',bars('daily-count',d.series,[{key:'submitted',label:'제출',color:c.blue},{key:'started',label:'시작',color:c.accent},{key:'running',label:'실행',color:c.orange}]))+panel('user-rank','사용자별 코어 시간','자원 규모를 반영한 사용량 · 상위 12명',horizontal('user-rank',d.users,'coreHours','name','core·h','users'))+'</div>';
       html+='<div class="grid">'+panel('daily-rate','시간에 따른 할당과 점유','이 추이 그래프는 관측된 시간 기준',lines('daily-rate',d.series,[{key:'allocPct',label:'코어 할당률',color:c.accent},{key:'busyPct',label:'작업 점유율',color:c.blue}]))+panel('daily-time','누적 작업 시간','조회기간 안의 실행 구간만 합산 · 추정값',bars('daily-time',d.series,[{key:'jobHours',label:'작업 시간',color:c.accent}],'h'))+'</div>';
-      html+=panel('node-heat','노드별 코어 할당률','행: 노드 · 열: 기간 · 노드 이름을 클릭해 상세 조회',heatmap('node-heat',d.heat,d.nodes.map(r=>r.name)));
+      html+=panel('usage-pie','전체 사용률 원그래프','선택 노드 전체의 코어 용량으로 가중 계산 · 관측률과 함께 확인',allocationPies('usage-pie',[{...s,name:'전체',purpose:'선택 노드 전체'}],''));
     }else if(S.tab==='nodes'){
       html='<div class="cards">'+card('선택한 노드',f(s.nodes,0),'개','업로드한 로그에 등장한 노드','▤')+card('코어 시간',f(s.coreHours),'core·h','노드별 할당량 합계','◷')+card('작업 점유율 · 추정',f(s.busyPct),'%',rateFoot,'◔')+card('기록 관측률',f(s.coverage),'%','미사용과 미관측을 구분','⌁')+'</div>';
-      html+=panel('node-pies','노드별 사용률 원그래프','선택 기간의 코어 할당률 · 낮음: 파랑 / 높음: 빨강 · 용도 표시',nodePies('node-pies',d.nodes));
+      html+=panel('node-pies','노드별 사용률 원그래프','선택 기간의 코어 할당률 · 낮음: 파랑 / 높음: 빨강 · 용도 표시',allocationPies('node-pies',d.nodes));
       html+=panel('node-heat','노드별 할당률 지도','부분 관측은 주황 표시 · 마지막 기록 이후는 연장하지 않음',heatmap('node-heat',d.heat,d.nodes.map(r=>r.name)));
       html+='<div class="grid equal">'+panel('node-rank','노드별 코어 시간','사용량이 집중된 노드를 확인하세요.',horizontal('node-rank',d.nodes,'coreHours','name','core·h','nodes'))+panel('node-busy','노드별 작업 점유율','CPU 부하와는 구분된 작업 실행 시간 비율',horizontal('node-busy',d.nodes,'busyPct','name','%','nodes'))+'</div>';
       html+=panel('node-wait','노드별 시작 전 대기시간','user_cpu에서 실행 노드가 확인된 시작 작업만 포함',waitComparison('node-wait',d.nodes,'nodes'));
       html+=table('nodes','노드별 상세','메모리·CPU load는 관측시간 가중평균',d.nodes,COLS.nodes);
     }else if(S.tab==='groups'){
+      html+=panel('group-pies','그룹별 사용률 원그래프','할당 코어 시간 ÷ 그룹 전체 코어 시간 · 노드별 백분율의 단순 평균이 아님',allocationPies('group-pies',d.groups,'groups'));
       html+='<div class="grid equal">'+panel('group-rank','partition별 코어 시간','그룹 간 자원 사용 규모 비교',horizontal('group-rank',d.groups,'coreHours','name','core·h','groups'))+panel('group-rate','partition별 코어 할당률','각 그룹의 전체 코어 용량을 분모로 계산',horizontal('group-rate',d.groups,'allocPct','name','%','groups'))+'</div>'+table('groups','노드 그룹별 상세','물리 노드가 여러 partition에 포함되면 그룹 합계는 중복될 수 있습니다.',d.groups,COLS.groups);
       html+=panel('group-wait','그룹별 시작 전 대기시간','작업 partition 기준 · 반복 관측과 다중 노드 작업을 그룹 안에서 중복 제거',waitComparison('group-wait',d.groups,'groups'));
     }else if(S.tab==='users'){
@@ -688,13 +735,18 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
       html+=panel('job-timeline','작업 실행 타임라인','작업 종료는 다음 스냅샷에서 사라진 시각으로 추정',timeline());
       html+='<div id="job-table-slot">'+table('jobs','작업 이력','정상 완료·실패 건수는 현재 로그만으로 확정할 수 없습니다.',S.jobRows,COLS.jobs,true)+'</div>';
     }else if(S.tab==='gpu'){
-      html+='<div class="cards">'+card('관측 GPU',f(d.gpu.length,0),'개','노드와 GPU index 조합 기준','▧')+card('평균 GPU 사용률',f(s.gpuUtil),'%','장치 전체 값 · 관측시간 가중평균','◔')+card('최대 관측 온도',f(d.gpu.some(r=>r.tempMax!==null)?Math.max(...d.gpu.filter(r=>r.tempMax!==null).map(r=>r.tempMax)):null),'°C','기간 내 기록된 최댓값','♨')+card('관측 사용자',f(d.users.filter(r=>r.gpuHours>0).length,0),'명','gpu_user 프로세스 기록 기준','♙')+'</div>';
+      if(!d.gpu.length)html+='<div class="notice">GPU 장치 기록이 조회 조건에 없습니다. gpu 로그와 기간·그룹·노드·사용자 필터를 확인하세요. <button class="button subtle" id="gpu-reset-filters">조회 조건 초기화</button></div>';
+      html+=panel('gpu-latest','GPU 마지막 관측 사용률','단일 기록도 표시 · 마지막 관측 시각은 아래 표 참고 · 기간 평균과 구분',horizontal('gpu-latest',d.latestGpu,'util','id','%',null));
+      html+='<div class="cards">'+card('관측 GPU',f(d.gpu.length,0),'개','노드와 GPU index 조합 기준','▧')+card('평균 GPU 사용률',f(s.gpuUtil),'%','장치 전체 값 · 관측시간 가중평균','◔')+card('최대 관측 온도',f(d.gpu.some(r=>r.tempMax!==null)?Math.max(...d.gpu.filter(r=>r.tempMax!==null).map(r=>r.tempMax)):null),'°C','기간 내 기록된 최댓값','♨')+card('관측 사용자',f(new Set(d.latestGpu.flatMap(r=>r.users)).size,0),'명','gpu_user 프로세스 기록 기준','♙')+'</div>';
       if(S.options.users.length)html+='<div class="notice">아래 GPU 사용률·전력·온도는 선택 사용자가 사용한 장치 전체 값입니다. 공유 GPU의 사용자별 계산 사용률을 뜻하지 않습니다.</div>';
       html+=panel('gpu-heat','GPU별 사용률','gpu 로그의 실제 측정값 · 시간 가중평균',heatmap('gpu-heat',d.gpuHeat,d.gpu.map(r=>r.id),true));
       html+='<div class="grid equal">'+panel('gpu-trend','GPU 사용률 추이','선택한 장치의 관측시간 가중평균',lines('gpu-trend',d.series,[{key:'gpuUtil',label:'장치 사용률',color:c.accent}]))+panel('gpu-user-rank','사용자별 GPU 점유시간','프로세스가 관측된 시간 · 계산 사용률과 구분',horizontal('gpu-user-rank',d.users,'gpuHours','name','GPU·h','users'))+'</div>';
+      html+=table('gpu-snapshots','GPU 마지막 관측값','각 장치의 마지막 관측 시각 · 현재 실시간 값이나 기간 평균을 뜻하지 않음',d.latestGpu,COLS.latestGpu);
       html+=table('gpu','GPU 장치별 상세','전력으로부터 관측 구간의 에너지를 추정합니다.',d.gpu,COLS.gpu);
     }else html=dataView();
-    $('#view').innerHTML=html;
+    const choices=CHARTS[S.tab];
+    $('#view').innerHTML=(choices?'<div class="graph-switch" role="group" aria-label="그래프 바로 전환">'+[['all','전체 차트'],...choices].map(([id,label])=>'<button class="button subtle" data-chart-select="'+id+'">'+esc(label)+'</button>').join('')+'</div>':'')+html;
+    selectChart();
     updateMethod();if(S.tab==='queue'&&(S.jobPage||S.jobQuery||S.jobSort!=='start'||S.jobDir!==-1))refreshJobs();
   }
   function dataView(){
@@ -707,8 +759,10 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     return html;
   }
   function updateMethod(){
-    const d=S.data;
-    $('#method-content').innerHTML='<p><strong>시간대:</strong> '+(S.options.offset===540?'한국시간 UTC+09:00':'UTC')+' · <strong>기록 주기:</strong> '+esc(S.options.interval)+'분</p><p><strong>조회 구간:</strong> 시작 시각 이상, 종료 시각 미만. 현황 상태는 종료 시각의 기록까지 확인합니다.</p><ul>'+(d?.notices||[]).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul><p><strong>코어 시간:</strong> 할당 코어 수 × 기록 간격.<br><strong>작업 점유율:</strong> 작업이 하나 이상 실행된 시간 ÷ 기준 시간.<br><strong>코어 할당률:</strong> 할당 코어 시간 ÷ 전체 코어 시간.<br><strong>사용자 작업 시간:</strong> 각 작업의 실행 구간을 합산. 동시 실행은 각각 합산.<br><strong>사용자 활동시간:</strong> 작업 실행 구간의 합집합 ÷ 조회기간.<br><strong>관측률:</strong> 기록이 확인된 노드 시간 ÷ 선택 노드의 조회기간 전체.</p><p>정확한 종료 시각과 성공 여부는 로그에 없습니다. 작업이 사라진 시각은 종료 추정이며 일시정지·재시작·수집 실패와 완전히 구분되지 않습니다.</p>';
+    const context='<p><strong>현재 설정:</strong> '+(S.options.offset===540?'한국시간 UTC+09:00':'UTC')+' · 기록 주기 '+esc(S.options.interval)+'분 · '+(S.options.denominator==='calendar'?'전체 조회기간 기준':'관측시간 기준')+'</p>';
+    const toc='<nav class="help-toc" aria-label="도움말 목차">'+HELP_SECTIONS.map((section,i)=>'<a href="#help-section-'+i+'">'+esc(section.title)+'</a>').join('')+'</nav>';
+    const guide=HELP_SECTIONS.map((section,i)=>'<section class="help-section" id="help-section-'+i+'"><h3>'+esc(section.title)+'</h3>'+section.paragraphs.map(p=>'<p>'+esc(p)+'</p>').join('')+'</section>').join('');
+    $('#method-content').innerHTML=context+toc+guide+'<h3>현재 조회의 확인 사항</h3><ul>'+(S.data?.notices||[]).map(note=>'<li>'+esc(note)+'</li>').join('')+'</ul>';
   }
   function fillFilters(meta,reset=false){
     for(const kind of ['groups','nodes','users']){
@@ -720,14 +774,16 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     }
   }
   function setRange(meta){
-    if(meta.min!==null){S.options.from=meta.min;S.options.to=meta.max;$('#from').value=codec.iso(meta.min,+S.options.offset).slice(0,16);$('#to').value=codec.iso(meta.max,+S.options.offset).slice(0,16);}
+    if(meta.min!==null){S.options.from=meta.min;S.options.to=meta.max;$('#from').value=codec.iso(meta.min,+S.options.offset);$('#to').value=codec.iso(meta.max,+S.options.offset);}
   }
   let analysisGeneration=0;
   async function analyze(){
     if(!S.meta)return;
     const generation=++analysisGeneration;
     S.options.from=codec.time($('#from').value,+S.options.offset);S.options.to=codec.time($('#to').value,+S.options.offset);S.options.bucket=$('#bucket').value;
-    if(S.options.from===null||S.options.to===null||S.options.to<=S.options.from){setBusy(false);$('#notice').hidden=false;$('#notice').className='notice error';$('#notice').textContent='시작·종료 시각을 확인하세요. 집계에는 서로 다른 시각의 기록이 필요합니다.';return;}
+    const snapshotOnly=S.meta.counts.gpu>0&&S.meta.min===S.meta.max&&S.options.from===S.options.to&&S.options.from===Math.floor(S.meta.min/1000)*1000;
+    if(snapshotOnly){S.options.from=S.meta.min;S.options.to=S.meta.max;}
+    if(S.options.from===null||S.options.to===null||S.options.to<=S.options.from&&!snapshotOnly){setBusy(false);$('#notice').hidden=false;$('#notice').className='notice error';$('#notice').textContent='시작·종료 시각을 확인하세요. 시간 집계에는 서로 다른 시각의 기록이 필요합니다.';return;}
     setBusy(true,'사용량을 집계하고 있습니다…');
     try{
       const d=await api('analyze',{options:S.options});if(generation!==analysisGeneration)return;
@@ -739,6 +795,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
       const tz=+S.options.offset===540?'한국시간 · UTC+09:00':'UTC';
       $('#range-caption').innerHTML='<span>'+esc(stamp(S.options.from))+' — '+esc(stamp(S.options.to))+' · '+tz+'</span><span>'+S.options.interval+'분 기록 · '+Object.values(S.meta.counts).filter(v=>v>0).length+'/6종 · 마지막 기록 '+esc(stamp(S.meta.max))+'</span>';
       const notes=[];
+      if(snapshotOnly)notes.push('단일 GPU 스냅샷: 마지막 관측값을 표시하며 기간 평균·점유시간은 계산하지 않습니다.');
       if(S.meta.demo)notes.push('현재 화면은 내장 예제입니다. 실제 로그를 불러오면 예제 데이터는 교체됩니다.');
       if(d.summary?.coverage!==null&&d.summary?.coverage<99.5)notes.push('기록 관측률 '+f(d.summary.coverage)+'%: 기록 공백은 유휴시간과 구분합니다.');
       if(S.meta.issueTotal)notes.push('데이터 확인 사항 '+f(S.meta.issueTotal,0)+'개 — 로그·검증 화면을 확인하세요.');
@@ -766,7 +823,8 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
       const count=Object.values(S.meta.counts).reduce((a,b)=>a+b,0);
       $('#dataset-badge').textContent=S.meta.demo?'예제 데이터 · 실제 로그 아님':f(count,0)+'개 기록';$('#dataset-badge').className='badge '+(S.meta.demo?'demo':'ready');
       if(S.meta.min===null){S.tab='data';render();toast('읽을 수 있는 기록이 없습니다. 헤더와 탭 구분을 확인하세요.');}
-      else if(S.meta.min===S.meta.max){S.data={empty:true,meta:S.meta,error:'현재 기록 시각이 하나뿐입니다. 시간·사용률 집계에는 다음 시각의 로그를 추가하세요.'};S.tab='data';render();}
+      else if(S.meta.min===S.meta.max&&S.meta.counts.gpu){S.tab='gpu';await analyze();}
+      else if(S.meta.min===S.meta.max){S.data={empty:true,meta:S.meta,error:'현재 기록 시각이 하나뿐입니다. 시간・사용률 집계에는 다음 시각의 로그를 추가하세요.'};S.tab='data';render();}
       else await analyze();
     }catch(e){toast('불러오기 실패: '+e.message);}finally{setBusy(false);$('#file-input').value='';}
   }
@@ -789,7 +847,8 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   }
   async function exportCSV(){
     if(!S.data||S.data.empty)return toast('먼저 로그를 불러오세요.');
-    const tableKey={overview:'daily',nodes:'nodes',groups:'groups',users:'users',queue:'jobs',gpu:'gpu',data:'files'}[S.tab];
+    let tableKey={overview:'daily',nodes:'nodes',groups:'groups',users:'users',queue:'jobs',gpu:'gpu',data:'files'}[S.tab];
+    if(S.tab==='gpu'&&S.charts.gpu==='gpu-latest')tableKey='latestGpu';
     let rows=tableKey==='daily'?S.data.series:tableKey==='files'?S.meta.files:tableKey==='jobs'?await api('jobExport'):S.data[tableKey];
     if(tableKey==='jobs'&&S.jobQuery){const q=S.jobQuery.toLowerCase();rows=rows.filter(r=>[r.id,r.user,r.partition,r.nodes,r.status,r.state].some(v=>String(v).toLowerCase().includes(q)));}
     download('HPC_'+tableKey+'_'+codec.iso(Date.now(),540).slice(0,10)+'.csv',new Blob([csv(rows,COLS[tableKey])],{type:'text/csv;charset=utf-8'}));toast('현재 조회 조건의 집계를 저장했습니다.');
@@ -814,6 +873,8 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   document.addEventListener('click',async e=>{
     const target=e.target.closest('button, [data-pick]');if(!target)return;
     if(target.dataset.tab){S.tab=target.dataset.tab;render();return;}
+    if(target.dataset.chartSelect){S.charts[S.tab]=target.dataset.chartSelect;selectChart();return;}
+    if(target.id==='gpu-reset-filters'){$('#reset-filters').click();return;}
     if(target.dataset.close){document.getElementById(target.dataset.close).close();return;}
     if(target.hasAttribute('data-import')){openImport();return;}
     if(target.id==='demo-button'){await loadDemo();return;}
