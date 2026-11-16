@@ -1,5 +1,6 @@
 """Real Tk widget checks. Run with DISPLAY set; optional on headless systems."""
 import os
+import gc
 import tempfile
 import time
 import unittest
@@ -7,22 +8,38 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import hpc_monitor_core as c
-from HPC_Monitor_X11 import CalendarPicker, LogFilePicker, MonitorGUI
+from HPC_Monitor_X11 import CalendarPicker, DATE_MODES, LogFilePicker, MonitorGUI, MultiDatePicker
 from test_version14 import calendar_store
+from test_version15 import weekend_store
+from datetime import date
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "A desktop or X11 display is needed for Tk widget checks")
 class DesktopTests(unittest.TestCase):
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         import tkinter as tk
-        self.root = tk.Tk()
+        # One interpreter keeps Tk/Matplotlib callbacks and X focus stable when
+        # the complete suite creates and closes several native applications.
+        cls.desktop = tk.Tk()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.desktop.destroy()
+
+    def setUp(self):
+        self.root = self.desktop
         self.callback_errors = []
         self.root.report_callback_exception = lambda _kind, value, _trace: self.callback_errors.append(str(value))
         self.root.geometry("1280x880+0+0")
 
     def tearDown(self):
         try:
-            self.root.destroy()
+            for event in self.root.tk.call("after", "info"):
+                self.root.after_cancel(event)
+            for child in self.root.winfo_children():
+                child.destroy()
+            gc.collect()
         except Exception:
             pass
         self.assertEqual(self.callback_errors, [], "Tk callback errors")
@@ -44,15 +61,19 @@ class DesktopTests(unittest.TestCase):
             picker = LogFilePicker(self.root, temporary)
             self.root.update()
             picker.tree.focus_force()
+            self.wait(lambda: self.root.focus_get() == picker.tree)
             picker.tree.event_generate("<Control-a>")
             self.root.update()
             selected = [picker.entries[key] for key in picker.tree.selection()]
             self.assertEqual(len(selected), 3)
             self.assertFalse(any(row["directory"] for row in selected))
             picker.entry.focus_force()
+            self.wait(lambda: self.root.focus_get() == picker.entry)
             picker.entry.event_generate("<Control-a>")
             self.root.update()
-            self.assertEqual(picker.entry.selection_get(), temporary)
+            self.assertTrue(picker.entry.selection_present())
+            self.assertEqual(picker.entry.index("sel.first"), 0)
+            self.assertEqual(picker.entry.index("sel.last"), len(temporary))
             self.assertEqual(len(picker.tree.selection()), 3)
             picker.dialog.destroy()
 
@@ -86,6 +107,51 @@ class DesktopTests(unittest.TestCase):
             app.dark_var.set(True)
             app.toggle_theme()
             self.assertEqual(app.data["settings"]["pieMax"], 80)
+        finally:
+            app.closed = True
+            app.executor.shutdown(wait=True, cancel_futures=True)
+
+    def test_multiple_dates_toggle_across_months_and_commit_or_cancel(self):
+        committed = []
+        first, last = date(2026, 10, 30), date(2026, 11, 2)
+        picker = MultiDatePicker(self.root, [], "exclude", first, last, lambda *args: committed.append(args))
+        picker.day_buttons[30].invoke()
+        picker.move(1)
+        picker.day_buttons[1].invoke()
+        self.assertEqual(picker.chosen, {"2026-10-30", "2026-11-01"})
+        picker.day_buttons[1].invoke()
+        picker.clear()
+        picker.weekends()
+        self.assertEqual(picker.chosen, {"2026-10-31", "2026-11-01"})
+        picker.dialog.destroy()
+        self.assertEqual(committed, [])
+        picker = MultiDatePicker(self.root, ["2026-10-31"], "include", first, last, lambda *args: committed.append(args))
+        picker.commit()
+        self.assertEqual(committed, [("include", ["2026-10-31"])])
+
+    def test_multiple_date_filter_applies_to_native_statistics_and_resets(self):
+        app = MonitorGUI(self.root, weekend_store(), SimpleNamespace(font_size=10))
+        try:
+            self.wait(lambda: not app.busy)
+            app.options["interval"] = 60
+            app.date_from.set("2026-10-30")
+            app.date_to.set("2026-11-02")
+            app.choose_dates()
+            app.date_picker.weekends()
+            app.date_picker.commit()
+            self.wait(lambda: not app.busy)
+            self.assertEqual(app.data["summary"]["coreHours"], 96)
+            self.assertEqual(app.data["selectedSeconds"], 48 * 3600)
+            self.assertIn("클릭한 날짜 제외", app.caption.cget("text"))
+            self.assertEqual(app.date_mode.get(), DATE_MODES["exclude"])
+            app.date_mode.set(DATE_MODES["include"])
+            app.apply_filters()
+            self.wait(lambda: not app.busy)
+            self.assertEqual(app.data["summary"]["coreHours"], 480)
+            app.reset_filters()
+            self.wait(lambda: not app.busy)
+            self.assertEqual(app.options["selectedDates"], [])
+            self.assertEqual(app.data["summary"]["coreHours"], 576)
         finally:
             app.closed = True
             app.executor.shutdown(wait=True, cancel_futures=True)

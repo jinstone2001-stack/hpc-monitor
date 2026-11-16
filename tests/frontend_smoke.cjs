@@ -33,6 +33,11 @@ async function wait(test, message) {
       w.URL.revokeObjectURL = () => {};
       w.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
       w.HTMLDialogElement.prototype.close = function () { this.open = false; };
+      const anchorClick = w.HTMLAnchorElement.prototype.click;
+      w.HTMLAnchorElement.prototype.click = function () {
+        // jsdom has no download manager. Verify the generated Blob below.
+        if (!this.hasAttribute('download')) return anchorClick.call(this);
+      };
     }
   });
   try {
@@ -48,6 +53,52 @@ async function wait(test, message) {
     assert.equal($('#from').type, 'date');
     $('#from').value = '2026-11-11'; $('#to').value = '2026-11-12'; $('#apply-range').click();
     await wait(() => $('#busy').hidden && $('#range-caption').textContent.includes('종료일 포함'), 'Date query failed');
+    // Multi-date selection is transactional and survives moving between months.
+    $('#open-date-calendar').click();
+    $('[data-date="2026-11-11"]').click();
+    assert.equal($('[data-date="2026-11-11"]').getAttribute('aria-pressed'), 'true');
+    $('[data-date="2026-11-11"]').click();
+    assert.equal($('[data-date="2026-11-11"]').getAttribute('aria-pressed'), 'false');
+    $('[data-date="2026-11-11"]').click();
+    $('#calendar-next').click();
+    assert.ok($('#date-selected-list').textContent.includes('2026-11-11'));
+    $('#date-dialog [data-close="date-dialog"]').click();
+    assert.equal($('#date-mode').value, 'all', 'Cancel must not commit draft dates');
+    $('#open-date-calendar').click();
+    assert.equal($('[data-date="2026-11-11"]').getAttribute('aria-pressed'), 'false');
+    $('[data-date="2026-11-11"]').click();
+    $('#apply-date-selection').click();
+    await wait(() => $('#busy').hidden && $('#range-caption').textContent.includes('집계 24시간'), 'Date exclusion failed');
+    assert.equal($('#date-mode').value, 'exclude');
+    $('#date-mode').value = 'include'; $('#date-mode').dispatchEvent(new w.Event('change'));
+    $('#apply-range').click();
+    await wait(() => $('#busy').hidden && $('#range-caption').textContent.includes('클릭한 날짜만 포함'), 'Date inclusion failed');
+    w.URL.createObjectURL = blob => { savedBlob = blob; return 'blob:export'; };
+    savedBlob = null; $('#export-session').click();
+    await wait(() => savedBlob, 'Session export failed');
+    const sessionText = await savedBlob.text(), session = JSON.parse(sessionText);
+    assert.equal(session.settings.dateMode, 'include');
+    assert.deepEqual(session.settings.selectedDates, ['2026-11-11']);
+    Object.defineProperty(input, 'files', {value: [new File([sessionText], 'selected-dates.json')], configurable: true});
+    input.dispatchEvent(new w.Event('change', {bubbles: true}));
+    await wait(() => !$('#busy').hidden, 'Session restore never started');
+    await wait(() => $('#busy').hidden && $('#range-caption').textContent.includes('집계 24시간'), 'Session selection restore failed');
+    assert.equal($('#date-mode').value, 'include');
+    $('#to').value = '2026-11-12';
+    $('#open-date-calendar').click(); $('#calendar-clear').click(); $('#apply-date-selection').click();
+    await wait(() => $('#busy').hidden && $('#notice').textContent.includes('집계할 날짜가 없습니다'), 'Empty selection failed');
+    // Weekend helper covers the entire query, independent of displayed month.
+    $('#to').value = '2026-11-16'; $('#open-date-calendar').click(); $('#calendar-weekends').click();
+    assert.equal(d.querySelectorAll('[data-remove-date]').length, 2);
+    assert.ok($('#date-selected-list').textContent.includes('2026-11-14'));
+    assert.ok($('#date-selected-list').textContent.includes('2026-11-15'));
+    $('#date-dialog [data-close="date-dialog"]').click();
+    $('#reset-filters').click();
+    await wait(() => $('#busy').hidden && $('#notice').textContent.indexOf('집계할 날짜가 없습니다') < 0, 'Reset must restore all dates');
+    assert.equal($('#date-mode').value, 'all');
+    // Restore the original two-day period before the existing scale checks.
+    $('#from').value = '2026-11-11'; $('#to').value = '2026-11-12'; $('#apply-range').click();
+    await wait(() => $('#busy').hidden && $('#range-caption').textContent.includes('종료일 포함'), 'Date reset query failed');
     $('[data-tab="groups"]').click();
     assert.equal(d.querySelectorAll('#view [data-chart]').length, 1, 'Inactive charts should not be constructed');
     const analysisCalls = calls.filter(c => c.op === 'analyze').length;
@@ -89,12 +140,11 @@ async function wait(test, message) {
       $('#server-files').close();
     }
     // Export the actual application result and confirm presentation does not alter data.
-    w.URL.createObjectURL = blob => { savedBlob = blob; return 'blob:export'; };
-    d.addEventListener('click', e => { if (e.target.closest('a[download]')) e.preventDefault(); });
+    savedBlob = null;
     $('#export-csv').click();
     await wait(() => savedBlob, 'CSV export failed');
     assert.match(await savedBlob.text(), /80/);
     assert.deepEqual(errors, [], 'Frontend script errors');
-    process.stdout.write((standalone ? 'HTML' : 'Python Web') + ': dates, scale, labels, chart rendering, keyboard and CSV passed\n');
+    process.stdout.write((standalone ? 'HTML' : 'Python Web') + ': multi-date inclusion/exclusion, weekends, cancel/reset, empty selection, scale, keyboard and CSV passed\n');
   } finally { dom.window.close(); }
 })().catch(e => { process.stderr.write(e.stack + '\n'); process.exitCode = 1; });

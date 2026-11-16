@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 TYPES = ("user_cpu", "queue_started", "queue_pending", "node_cpu", "gpu_user", "gpu")
 SCHEMA = {
     "user_cpu": "timestamp user node partition cpus_alloc mem_alloc_mb n_jobs job_ids".split(),
@@ -47,7 +47,8 @@ DISTINCTIVE = {
     "gpu": {"gpu_util", "gpu_index", "gpu_name"},
 }
 DEFAULTS = dict(offset=540, interval=30, startedMode="snapshot",
-                nodeClock=True, denominator="observed", bucket="day", pieMax=100, rangeMode="dates")
+                nodeClock=True, denominator="observed", bucket="day", pieMax=100, rangeMode="dates",
+                dateMode="all", selectedDates=[])
 DAY, HOUR = 86_400_000, 3_600_000
 MISSING = re.compile(r"^(?:N/A|NA|nan|null|none|-)$", re.I)
 TIME_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?", re.I)
@@ -111,6 +112,26 @@ def parse_list(value):
     return list(_list_items(str(value or "").strip()))
 
 
+def selected_date_windows(first, last, opt):
+    """Disjoint local-calendar windows; excluded days contribute no denominator."""
+    if opt["dateMode"] == "all":
+        return [[first, last]] if last > first else []
+    selected = set(opt["selectedDates"])
+    windows = []
+    current = first
+    while current < last:
+        midnight = (current + opt["offset"] * 60000) // DAY * DAY - opt["offset"] * 60000
+        end = min(last, midnight + DAY)
+        chosen = iso(current, opt["offset"])[:10] in selected
+        if chosen == (opt["dateMode"] == "include"):
+            if windows and windows[-1][1] == current:
+                windows[-1][1] = end
+            else:
+                windows.append([current, end])
+        current = end
+    return windows
+
+
 @lru_cache(maxsize=8192)
 def _list_items(text):
     if not text or re.fullmatch(r"-|none|N/A|\(null\)", text, re.I):
@@ -160,6 +181,18 @@ def options_from(value=None):
         opt["nodeClock"] = raw["nodeClock"]
     if raw.get("rangeMode") in ("dates", "times"):
         opt["rangeMode"] = raw["rangeMode"]
+    if raw.get("dateMode") in ("all", "include", "exclude"):
+        opt["dateMode"] = raw["dateMode"]
+    opt["selectedDates"] = []
+    if isinstance(raw.get("selectedDates"), list):
+        for item in raw["selectedDates"]:
+            if isinstance(item, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", item):
+                try:
+                    date.fromisoformat(item)
+                    opt["selectedDates"].append(item)
+                except ValueError:
+                    pass
+        opt["selectedDates"] = sorted(set(opt["selectedDates"]))
     maximum = number(raw.get("pieMax"))
     if maximum is not None and 0 < maximum <= 100:
         opt["pieMax"] = maximum
@@ -475,7 +508,22 @@ def analyze(store: LogStore, options=None):
     if opt["bucket"] == "week" and (stop - start) / DAY / 7 > 240:
         opt["bucket"] = "month"
     offset, mode, step = opt["offset"], opt["bucket"], opt["interval"] * 60000
-    duration = (stop - start) / 1000
+    windows = selected_date_windows(start, stop, opt)
+    window_ends = [b for _, b in windows]
+    selected_days = {parse_time(value + "T00:00:00", 0) // DAY for value in opt["selectedDates"]}
+
+    def in_selection(t, endpoint=False):
+        if t is None or t < start or (t > stop if endpoint else t >= stop):
+            return False
+        if opt["dateMode"] == "all":
+            return True
+        if t == stop and not snapshot_only:
+            return False
+        return ((t + offset * 60000) // DAY in selected_days) == (opt["dateMode"] == "include")
+
+    if not windows and not (snapshot_only and in_selection(start, True)):
+        return dict(empty, error="집계할 날짜가 없습니다. 달력에서 날짜를 선택하거나 포함·제외 방식을 변경하세요.")
+    duration = sum((b - a) / 1000 for a, b in windows)
     choose = lambda kind, value: not opt[kind] or value in opt[kind]
     group_match = lambda groups: not opt["groups"] or bool(set(groups).intersection(opt["groups"]))
     row_group = lambda r: not opt["groups"] or group_match(parse_list(r.get("partition") or r.get("partitions")))
@@ -493,10 +541,11 @@ def analyze(store: LogStore, options=None):
                     coreSec=0, capacitySec=0, observed=0, busy=0, gpuSec=0,
                     gpuWeight=0, pendingMax=0, wait=[])
 
-    b = bucket_start(start, mode, offset)
-    while b < stop:
-        daily[b] = fresh_day(b)
-        b = next_bucket(b, mode, offset)
+    for a, end in windows:
+        b = bucket_start(a, mode, offset)
+        while b < end:
+            daily.setdefault(b, fresh_day(b))
+            b = next_bucket(b, mode, offset)
 
     def day(t):
         key = bucket_start(t, mode, offset)
@@ -505,7 +554,18 @@ def analyze(store: LogStore, options=None):
         return daily[key]
 
     def clipped(a, b):
-        return max(a, start), min(b, stop)
+        index = bisect_right(window_ends, a)
+        result = []
+        while index < len(windows) and windows[index][0] < b:
+            x, y = windows[index]
+            result.append([max(a, x), min(b, y)])
+            index += 1
+        return result
+
+    def accounted(source):
+        for a, b, row in source:
+            for x, y in clipped(a, b):
+                yield x, y, row
 
     def clock_for(kind, anchor):
         return sorted(set(times[kind] + (times[anchor] if opt["nodeClock"] else [])))
@@ -531,12 +591,9 @@ def analyze(store: LogStore, options=None):
         if inventory[name]["hasCPU"]:
             node_stats[name] = fresh_stats()
     physical_capacity = 0
-    for a, b, row in intervals(rows_in_window(tables["node_cpu"], start - step, stop), lambda r: r["node"], times["node_cpu"], step,
-                               times["node_cpu"][-1] if times["node_cpu"] else None):
+    for a, b, row in accounted(intervals(rows_in_window(tables["node_cpu"], start - step, stop), lambda r: r["node"], times["node_cpu"], step,
+                               times["node_cpu"][-1] if times["node_cpu"] else None)):
         if row["node"] not in selected_nodes:
-            continue
-        a, b = clipped(a, b)
-        if b <= a:
             continue
         if row["cpu_total"] is not None:
             physical_capacity += row["cpu_total"] * (b - a) / 1000
@@ -572,11 +629,8 @@ def analyze(store: LogStore, options=None):
                 h["busy"] += sec if cpu > 0 else 0
                 if row["cpu_total"] is not None:
                     h["cap"] += row["cpu_total"] * sec
-    for a, b, row in user_intervals:
+    for a, b, row in accounted(user_intervals):
         if row["node"] not in selected_nodes or not user_match(row) or not row_group(row):
-            continue
-        a, b = clipped(a, b)
-        if b <= a:
             continue
         u, sec = stat(user_stats, row["user"]), (b - a) / 1000
         u["nodes"].add(row["node"])
@@ -650,7 +704,7 @@ def analyze(store: LogStore, options=None):
                 next_t = start_next.get(t)
                 if next_t is not None:
                     j["ranges"].append([t, min(t + step, next_t)])
-    queue_clock = sorted(t for t in set(times["queue_pending"] + times["queue_started"] + (times["node_cpu"] if opt["nodeClock"] else [])) if start <= t <= stop)
+    queue_clock = sorted(t for t in set(times["queue_pending"] + times["queue_started"] + (times["node_cpu"] if opt["nodeClock"] else [])) if in_selection(t, True))
     last_queue = queue_clock[-1] if queue_clock else None
     current_pending = {get_job(r, "queue_pending")["key"]: r for r in tables["queue_pending"] if r["t"] == last_queue}
     visible, pending_rows, reasons, waits, activity = [], [], defaultdict(int), [], defaultdict(list)
@@ -673,12 +727,12 @@ def analyze(store: LogStore, options=None):
             refined = merge_ranges(ranges)
             if refined and refined[0][0] == first and j["start"] is not None and j["start"] <= first and first - j["start"] <= step:
                 refined[0][0] = j["start"]
-            return merge_ranges(clipped(*r) for r in refined)
+            return merge_ranges(part for r in refined for part in clipped(*r))
 
         ranges = refine(j["ranges"])
         elapsed = seconds(ranges)
-        is_sub = j["submit"] is not None and start <= j["submit"] < stop
-        is_start = j["start"] is not None and start <= j["start"] < stop
+        is_sub = in_selection(j["submit"])
+        is_start = in_selection(j["start"])
         pending = current_pending.get(j["key"])
         if pending and j["start"] is not None and j["start"] <= last_queue:
             pending = None
@@ -713,9 +767,9 @@ def analyze(store: LogStore, options=None):
                 for bt, sec in splits(a, b, mode, offset):
                     day(bt)["running"].add(j["key"])
                     day(bt)["jobSec"] += sec
-        last = max((t for t in obs if t <= stop), default=None)
+        last = max((t for t in obs if t <= stop and (opt["dateMode"] == "all" or in_selection(t, True))), default=None)
         next_t = (clock_next if j["hasCPU"] else start_next).get(last)
-        ended = last is not None and next_t is not None and next_t - last <= step * 1.1 and next_t <= stop
+        ended = last is not None and next_t is not None and next_t - last <= step * 1.1 and next_t <= stop and (opt["dateMode"] == "all" or in_selection(next_t, True))
         status = "대기" if pending else "종료 추정" if ended else "종료 미확인" if elapsed else "시작 기록" if is_start else "제출 기록"
         if ended and elapsed:
             ended_count += 1
@@ -749,7 +803,7 @@ def analyze(store: LogStore, options=None):
                             key=json.dumps(j["key"]), ranges=ranges))
     pending_samples = defaultdict(set)
     for row in tables["queue_pending"]:
-        if start <= row["t"] < stop and user_match(row) and row_group(row) and not opt["nodes"]:
+        if in_selection(row["t"]) and user_match(row) and row_group(row) and not opt["nodes"]:
             pending_samples[row["t"]].add((row["job_id"], row["sub"]))
     for t, values in pending_samples.items():
         day(t)["pendingMax"] = max(day(t)["pendingMax"], len(values))
@@ -757,16 +811,13 @@ def analyze(store: LogStore, options=None):
     gpu_user_clock = clock_for("gpu_user", "gpu")
     gpu_user_ranges, allowed_gpu, gpu_users = defaultdict(list), set(), defaultdict(set)
     for row in rows_in_window(tables["gpu_user"], start, stop):
-        if start <= row["t"] <= stop and row["node"] in selected_nodes and user_match(row):
+        if in_selection(row["t"], True) and row["node"] in selected_nodes and user_match(row):
             gid = row["node"] + "/GPU" + row["gpu_index"]
             allowed_gpu.add(gid)
             gpu_users[gid].add(row["user"])
-    for a, b, row in intervals(rows_in_window(tables["gpu_user"], start - step, stop), lambda r: (r["node"], r["gpu_index"], r["pid"], r["user"], r["job_id"]),
-                               gpu_user_clock, step, gpu_user_clock[-1] if gpu_user_clock else None):
+    for a, b, row in accounted(intervals(rows_in_window(tables["gpu_user"], start - step, stop), lambda r: (r["node"], r["gpu_index"], r["pid"], r["user"], r["job_id"]),
+                               gpu_user_clock, step, gpu_user_clock[-1] if gpu_user_clock else None)):
         if row["node"] not in selected_nodes or not user_match(row):
-            continue
-        a, b = clipped(a, b)
-        if b <= a:
             continue
         u, sec = stat(user_stats, row["user"]), (b - a) / 1000
         u["nodes"].add(row["node"])
@@ -788,20 +839,17 @@ def analyze(store: LogStore, options=None):
     latest_gpu = {}
     for row in rows_in_window(tables["gpu"], start, stop):
         gid = row["node"] + "/GPU" + row["gpu_index"]
-        if start <= row["t"] <= stop and row["node"] in selected_nodes and (not scoped or gid in allowed_gpu):
+        if in_selection(row["t"], True) and row["node"] in selected_nodes and (not scoped or gid in allowed_gpu):
             gpu_entry(row)
             latest_gpu[gid] = dict(id=gid, node=row["node"], name=row["gpu_name"], t=row["t"],
                                    purpose=purpose_for(inventory[row["node"]]["groups"], row["node"]),
                                    util=row["gpu_util"], memPct=row["mem_pct"], temp=row["temp_c"], power=row["power_w"],
                                    users=sorted(gpu_users[gid]))
 
-    for a, b, row in intervals(rows_in_window(tables["gpu"], start - step, stop), lambda r: (r["node"], r["gpu_index"]),
-                               times["gpu"], step, times["gpu"][-1] if times["gpu"] else None):
+    for a, b, row in accounted(intervals(rows_in_window(tables["gpu"], start - step, stop), lambda r: (r["node"], r["gpu_index"]),
+                               times["gpu"], step, times["gpu"][-1] if times["gpu"] else None)):
         gid = row["node"] + "/GPU" + row["gpu_index"]
         if row["node"] not in selected_nodes or (scoped and gid not in allowed_gpu):
-            continue
-        a, b = clipped(a, b)
-        if b <= a:
             continue
         g = gpu_entry(row)
         for bt, sec in splits(a, b, mode, offset):
@@ -823,13 +871,13 @@ def analyze(store: LogStore, options=None):
                 g["powerWeight"] += sec
     for row in rows_in_window(tables["gpu"], start, stop):
         gid = row["node"] + "/GPU" + row["gpu_index"]
-        if not start <= row["t"] < stop or row["node"] not in selected_nodes or (scoped and gid not in allowed_gpu):
+        if not in_selection(row["t"]) or row["node"] not in selected_nodes or (scoped and gid not in allowed_gpu):
             continue
         g = gpu_entry(row)
         for field, source in (("tempMax", "temp_c"), ("memMax", "mem_used_mb")):
             if row[source] is not None:
                 g[field] = max(g[field] if g[field] is not None else -math.inf, row[source])
-    states = {r["node"]: r["state"] for r in tables["node_cpu"] if r["t"] <= stop}
+    states = {r["node"]: r["state"] for r in tables["node_cpu"] if r["t"] <= stop and (opt["dateMode"] == "all" or in_selection(r["t"], True))}
     calendar = opt["denominator"] == "calendar"
     for name in node_waits:
         stat(node_stats, name)
@@ -889,7 +937,7 @@ def analyze(store: LogStore, options=None):
                      coverage=ratio(g["observed"], duration), users=", ".join(sorted(gpu_users[g["id"]])))
                 for g in gpu_stats.values()]
     gpu_weight = sum(g["gpuWeight"] for g in gpu_stats.values())
-    latest_rows = [r for r in tables["node_cpu"] if start <= r["t"] <= stop and r["node"] in selected_nodes]
+    latest_rows = [r for r in tables["node_cpu"] if in_selection(r["t"], True) and r["node"] in selected_nodes]
     last_node = latest_rows[-1]["t"] if latest_rows else None
     summary = dict(submitted=submitted if available["queue_pending"] or available["queue_started"] else None,
                    started=started if available["queue_started"] else None, running=running if has_jobs else None,
@@ -915,7 +963,7 @@ def analyze(store: LogStore, options=None):
                            **wait_stats(d["wait"])))
 
     def bucket_duration(t):
-        return (min(stop, next_bucket(t, mode, offset)) - max(start, t)) / 1000
+        return sum((b - a) / 1000 for a, b in clipped(t, next_bucket(t, mode, offset)))
 
     notices = [
         f"{opt['interval']:g}분 사이에 시작하고 끝난 작업은 누락될 수 있습니다. 건수는 관측된 작업 기준입니다.",
@@ -935,11 +983,14 @@ def analyze(store: LogStore, options=None):
         notices.append("노드 그래프는 선택 partition 소속 물리 노드 전체이며 사용자별 집계에는 작업 partition도 적용합니다.")
     if calendar:
         notices.append("전체기간 사용률은 미관측 구간을 제외한 하한값입니다. 관측률과 함께 해석하세요.")
+    if opt["dateMode"] != "all":
+        action = "선택한 날짜만 포함" if opt["dateMode"] == "include" else "선택한 날짜 제외"
+        notices.append(f"{action}: {len(opt['selectedDates'])}일 선택. 포함된 시간만 집계하며 사용률·관측률 분모에서도 제외 날짜를 뺍니다.")
     if not available["node_cpu"]:
         notices.append("node_cpu가 없어 전체 코어 용량과 노드 사용률·관측률은 계산할 수 없습니다.")
     if any(len(inventory[x]["groups"]) > 1 for x in selected_nodes):
         notices.append("여러 partition의 공통 노드는 그룹별 표에 중복될 수 있으나 전체 합계에서는 한 번만 계산합니다.")
-    return dict(empty=False, snapshotOnly=snapshot_only, settings=opt, meta=store.describe(opt), **{"from": start, "to": stop},
+    return dict(empty=False, snapshotOnly=snapshot_only, selectedSeconds=duration, settings=opt, meta=store.describe(opt), **{"from": start, "to": stop},
                 summary=summary, series=series, nodes=sorted(node_rows, key=lambda r: natural_key(r["name"])),
                 groups=sorted(group_rows, key=lambda r: r["name"]),
                 users=sorted(user_rows, key=lambda r: -(r["coreHours"] or r["gpuHours"] or 0)),

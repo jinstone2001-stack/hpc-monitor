@@ -11,7 +11,7 @@ import queue
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from datetime import date
+from datetime import date, timedelta
 
 from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, date_range, demo_store, iso, parse_time, table_csv
 from hpc_monitor_plot import PLOT_NAMES, VIEWS, figure_for
@@ -230,6 +230,110 @@ class CalendarPicker:
         self.dialog.destroy()
 
 
+DATE_MODES = {"all": "전체 날짜", "include": "클릭한 날짜만 포함", "exclude": "클릭한 날짜 제외"}
+
+
+class MultiDatePicker(CalendarPicker):
+    """Multiple dates across months, committed only by the Apply button."""
+
+    def __init__(self, parent, selected_dates, mode, first, last, apply):
+        import tkinter as tk
+        from tkinter import ttk
+        self.chosen = set(selected_dates)
+        self.first, self.last, self.apply = first, last, apply
+        self.mode = tk.StringVar(value="include" if mode == "include" else "exclude")
+        super().__init__(parent, tk.StringVar(value=first.isoformat()))
+        self.dialog.title("달력에서 여러 날짜 선택")
+        directions = ttk.Frame(self.dialog, padding=(10, 0, 10, 8))
+        directions.pack(fill="x", before=self.days)
+        ttk.Label(directions, text="날짜를 클릭해 선택/해제 · 월을 옮겨도 유지\n주말·연휴를 빼려면 '클릭한 날짜 제외' 선택").pack(anchor="w")
+        for value in ("include", "exclude"):
+            ttk.Radiobutton(directions, text=DATE_MODES[value], value=value, variable=self.mode, command=self.draw).pack(anchor="w", pady=2)
+        tools = ttk.Frame(self.dialog, padding=(10, 0, 10, 6))
+        tools.pack(fill="x")
+        ttk.Button(tools, text="조회기간 주말 선택", command=self.weekends).pack(side="left")
+        ttk.Button(tools, text="선택 모두 해제", command=self.clear).pack(side="left", padx=5)
+        self.count = ttk.Label(self.dialog, padding=(10, 0, 10, 5))
+        self.count.pack(anchor="w")
+        selected = ttk.Frame(self.dialog, padding=(10, 0, 10, 5))
+        selected.pack(fill="x")
+        self.listbox = tk.Listbox(selected, height=4, selectmode="extended", exportselection=False)
+        self.listbox.pack(side="left", fill="x", expand=True)
+        scrollbar = ttk.Scrollbar(selected, orient="vertical", command=self.listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.listbox.configure(yscrollcommand=scrollbar.set)
+        ttk.Button(self.dialog, text="목록에서 선택한 날짜 해제", command=self.remove).pack(anchor="w", padx=10)
+        actions = ttk.Frame(self.dialog, padding=10)
+        actions.pack(fill="x")
+        ttk.Button(actions, text="날짜 적용·조회", command=self.commit).pack(side="right")
+        ttk.Button(actions, text="취소", command=self.dialog.destroy).pack(side="right", padx=5)
+        self.draw()
+
+    def draw(self):
+        from tkinter import ttk
+        self.title.configure(text=f"{self.year}년 {self.month}월")
+        for widget in self.days.winfo_children():
+            widget.destroy()
+        self.day_buttons = {}
+        style = "ExcludedDay.TButton" if self.mode.get() == "exclude" else "IncludedDay.TButton"
+        ttk.Style(self.dialog).configure(style, foreground="#ba4a4a" if self.mode.get() == "exclude" else "#087f8c")
+        for column, label in enumerate(("월", "화", "수", "목", "금", "토", "일")):
+            ttk.Label(self.days, text=label, anchor="center", width=5).grid(row=0, column=column, pady=5)
+        for row, week in enumerate(calendar.monthcalendar(self.year, self.month), 1):
+            for column, day in enumerate(week):
+                if not day:
+                    continue
+                value = date(self.year, self.month, day)
+                chosen = value.isoformat() in self.chosen
+                text = f"[{day}]" if chosen else str(day)
+                button = ttk.Button(self.days, text=text, width=5, style=style if chosen else "TButton", command=lambda d=day: self.choose(d))
+                button.grid(row=row, column=column, padx=1, pady=2)
+                if not self.first <= value <= self.last:
+                    button.state(["disabled"])
+                self.day_buttons[day] = button
+        if hasattr(self, "count"):
+            values = sorted(self.chosen)
+            within = sum(self.first.isoformat() <= d <= self.last.isoformat() for d in values)
+            self.count.configure(text=f"{DATE_MODES[self.mode.get()]} · {len(values)}일 선택 (기간 내 {within}일)\n[숫자] 표시가 선택된 날짜입니다.")
+            self.listbox.delete(0, "end")
+            for value in values:
+                self.listbox.insert("end", value)
+
+    def choose(self, day):
+        value = date(self.year, self.month, day)
+        if not self.first <= value <= self.last:
+            return
+        key = value.isoformat()
+        if key in self.chosen:
+            self.chosen.remove(key)
+        else:
+            self.chosen.add(key)
+        self.draw()
+        self.day_buttons[day].focus_set()
+
+    def weekends(self):
+        current = self.first
+        while current <= self.last:
+            if current.weekday() >= 5:
+                self.chosen.add(current.isoformat())
+            current += timedelta(days=1)
+        self.draw()
+
+    def clear(self):
+        self.chosen.clear()
+        self.draw()
+
+    def remove(self):
+        for index in self.listbox.curselection():
+            self.chosen.discard(self.listbox.get(index))
+        self.draw()
+
+    def commit(self):
+        mode, dates = self.mode.get(), sorted(self.chosen)
+        self.dialog.destroy()
+        self.apply(mode, dates)
+
+
 class MonitorGUI:
     def __init__(self, root, store, args):
         import tkinter as tk
@@ -316,7 +420,17 @@ class MonitorGUI:
         mode = ttk.Combobox(filters, textvariable=self.range_mode, values=["날짜 · 종료일 포함", "시각 · 종료 미포함"], state="readonly", width=22)
         mode.grid(row=2, column=0, columnspan=2, sticky="w", pady=(9, 0))
         mode.bind("<<ComboboxSelected>>", self.change_range_mode)
-        ttk.Label(filters, text="날짜를 고른 뒤 조회 · 종료일 전체 포함 · 기록 이후는 연장하지 않음").grid(row=2, column=2, columnspan=6, sticky="w", pady=(9, 0))
+        ttk.Label(filters, text="날짜를 고른 뒤 조회 · 종료일 전체 포함").grid(row=2, column=2, columnspan=6, sticky="w", pady=(9, 0))
+        date_tools = ttk.Frame(filters)
+        date_tools.grid(row=3, column=0, columnspan=8, sticky="ew", pady=(10, 0))
+        ttk.Label(date_tools, text="날짜 포함·제외").pack(side="left", padx=(0, 8))
+        self.date_mode = tk.StringVar(value=DATE_MODES["all"])
+        date_mode = ttk.Combobox(date_tools, textvariable=self.date_mode, values=list(DATE_MODES.values()), state="readonly", width=23)
+        date_mode.pack(side="left", padx=(0, 8))
+        date_mode.bind("<<ComboboxSelected>>", lambda _e: self.sync_date_filter())
+        ttk.Button(date_tools, text="달력에서 여러 날짜 선택", command=self.choose_dates).pack(side="left", padx=(0, 8))
+        self.date_summary = ttk.Label(date_tools, text="주말·연휴를 골라 제외할 수 있습니다.")
+        self.date_summary.pack(side="left")
         for column in range(5):
             filters.columnconfigure(column, weight=1)
         self.caption = ttk.Label(body, text="탭 구분 파일을 선택하거나 예제로 시작하세요.")
@@ -490,6 +604,33 @@ class MonitorGUI:
             self.range_labels[index].configure(text=("시작일" if index == 0 else "종료일 · 포함") if dates else ("조회 시작 시각" if index == 0 else "종료 시각 · 미포함"))
         self.options["rangeMode"] = "dates" if dates else "times"
 
+    def sync_date_filter(self):
+        mode = next((key for key, value in DATE_MODES.items() if value == self.date_mode.get()), "all")
+        self.date_summary.configure(text="전체 날짜 집계" if mode == "all" else f"{len(self.options['selectedDates'])}일 선택 · 조회로 적용")
+
+    def choose_dates(self):
+        if self.busy:
+            return
+        try:
+            if self.range_mode.get().startswith("날짜"):
+                a, b = date_range(self.date_from.get(), self.date_to.get(), self.options["offset"])
+            else:
+                a, b = parse_time(self.from_var.get(), self.options["offset"]), parse_time(self.to_var.get(), self.options["offset"])
+            if a is None or b is None or b < a or b - a > 3653 * 86400000:
+                raise ValueError("시작일·종료일을 확인하세요. 최대 10년까지 선택할 수 있습니다.")
+        except ValueError as exc:
+            self.messagebox.showinfo("날짜 선택", str(exc), parent=self.root)
+            return
+        mode = next((key for key, value in DATE_MODES.items() if value == self.date_mode.get()), "all")
+        def apply(mode, dates):
+            self.options["dateMode"], self.options["selectedDates"] = mode, dates
+            self.date_mode.set(DATE_MODES[mode])
+            self.sync_date_filter()
+            self.apply_filters()
+        self.date_picker = MultiDatePicker(self.root, self.options["selectedDates"], mode,
+                                          date.fromisoformat(iso(a, self.options["offset"])[:10]),
+                                          date.fromisoformat(iso(b - (1 if b > a else 0), self.options["offset"])[:10]), apply)
+
     def apply_filters(self):
         if self.busy:
             return
@@ -511,6 +652,7 @@ class MonitorGUI:
             self.messagebox.showinfo("조회 기간", "서로 다른 시각의 기록을 두 개 이상 불러오고 시작·종료 시각을 확인하세요.", parent=self.root)
             return
         self.options.update(self.filter_selection)
+        self.options["dateMode"] = next((key for key, value in DATE_MODES.items() if value == self.date_mode.get()), "all")
         self.options.update({"from": a, "to": b, "rangeMode": "dates" if dates else "times", "bucket": {"시간별": "hour", "일별": "day", "주별": "week", "월별": "month"}[self.bucket_var.get()]})
         options = dict(self.options)
         self.work(lambda: analyze(self.store, options), self.accept)
@@ -549,6 +691,8 @@ class MonitorGUI:
                 self.options.update({k: v for k, v in store.imported_settings.items() if k in DEFAULTS})
                 self.pie_max.set(str(self.options["pieMax"]))
                 self.range_mode.set("날짜 · 종료일 포함" if self.options["rangeMode"] == "dates" else "시각 · 종료 미포함")
+                self.date_mode.set(DATE_MODES[self.options["dateMode"]])
+                self.sync_date_filter()
                 self.change_range_mode()
             self.update_range()
             self.filter_selection = {k: [] for k in self.filter_selection}
@@ -573,6 +717,9 @@ class MonitorGUI:
             self.work(demo_store, done)
 
     def reset_filters(self):
+        self.options["dateMode"], self.options["selectedDates"] = "all", []
+        self.date_mode.set(DATE_MODES["all"])
+        self.sync_date_filter()
         self.filter_selection = {k: [] for k in self.filter_selection}
         self.update_filter_labels()
         self.update_range()
@@ -665,6 +812,8 @@ class MonitorGUI:
             first = iso(data["from"], self.options["offset"])
             last = iso(data["to"] - (0 if data.get("snapshotOnly") else 1), self.options["offset"])
             period = f"{first[:10]} — {last[:10]} (종료일 포함)" if data["settings"]["rangeMode"] == "dates" else f"{first} — {iso(data['to'], self.options['offset'])}"
+            if data["settings"]["dateMode"] != "all":
+                period += f" · {DATE_MODES[data['settings']['dateMode']]} {len(data['settings']['selectedDates'])}일 · 집계 {data['selectedSeconds'] / 3600:g}시간"
             self.caption.configure(text=f"{period} · {tz} · {sum(meta['counts'].values()):,}개 기록 · 확인 사항 {meta['issueTotal']:,}개")
         else:
             self.caption.configure(text=data.get("error", "로그를 불러오세요.") if data else "탭 구분 로그 파일을 선택하거나 예제로 시작하세요.")

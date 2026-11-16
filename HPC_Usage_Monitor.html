@@ -14,6 +14,7 @@
 @media(max-width:600px){.topbar{padding:12px 15px}.breadcrumb{display:none}.top-actions{width:100%;justify-content:flex-end}.workspace{padding:22px 14px}.heading h1{font-size:24px}.heading p{font-size:10px}.badge{font-size:9px;padding:5px 8px}.eyebrow{font-size:8px}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.card{min-height:106px}.card-value{font-size:29px}.filters{padding:12px;gap:8px}.period{flex:1 1 44%;min-width:0}.period input{min-width:0;font-size:10px;padding:6px}.filter{flex:1 1 30%;min-width:85px}.filter.small{flex:1 1 85px}.multi summary{max-width:none}.choices{min-width:200px}.filter:nth-of-type(5) .choices{left:auto;right:0}.range-caption{font-size:9px;display:block}.panel-head{padding:15px 14px 9px}.panel-body{padding:4px 10px 12px}.table-tools input{max-width:135px}.panel-head h2{font-size:12px}.chart{min-height:0}.data-types{grid-template-columns:repeat(2,minmax(0,1fr))}.footer{font-size:9px}.footer button{font-size:9px}.setting-label{display:block}.setting-label select,.setting-label input{display:block;margin-top:8px;max-width:100%;width:100%}.check{font-size:11px}dialog{padding:20px}.card-foot{font-size:9px}.panel-note{font-size:9px}.legend{font-size:9px;gap:10px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
 .graph-switch{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.graph-switch .primary{background:var(--accent);color:var(--panel)}.grid.single-chart{grid-template-columns:1fr}.help-toc{display:flex;flex-wrap:wrap;gap:8px 16px;margin:18px 0}.help-toc a{color:var(--accent)}.help-section{margin:22px 0}.help-section h3{font-size:14px;color:var(--ink)}
+.date-selection-row{flex:1 0 100%;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}.date-selection-row label{margin:0;font-size:12px}.date-selection-row select{font-size:12px}.date-selection-row .help{flex:1 1 230px}.calendar-mode{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}.calendar-mode label{display:flex;align-items:center;gap:6px;font-size:12px}.calendar-mode input{min-height:auto}.calendar-nav{display:flex;gap:8px;justify-content:center;align-items:center;margin:16px 0 10px}.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.calendar-grid .weekday{text-align:center;font-size:12px;color:var(--muted);padding:5px}.calendar-day{border:1px solid var(--line);border-radius:7px;min-height:46px;background:var(--panel-soft);font-size:14px}.calendar-day.weekend{color:var(--warn)}.calendar-day[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border:2px solid var(--accent);font-weight:700}.calendar-grid[data-mode=exclude] .calendar-day[aria-pressed=true]{background:var(--warn-bg);color:var(--error);border-color:var(--error)}.calendar-day small{display:block;font-size:9px}.calendar-selection{display:flex;gap:5px;flex-wrap:wrap;max-height:108px;overflow:auto;margin-top:10px}.calendar-selection button{border:1px solid var(--line);border-radius:5px;padding:4px 7px;font-size:11px}.calendar-selection button:hover{background:var(--panel-soft)}#date-dialog .dialog-actions{position:sticky;bottom:-24px;background:var(--panel);padding:14px 0;margin-top:12px}#date-draft-count{font-size:12px;margin-top:14px}
 </style>
 </head>
 <body>
@@ -29,7 +30,7 @@
     <button data-tab="gpu"><span>▧</span>GPU</button>
     <button data-tab="data"><span>⇄</span>로그·검증</button>
   </nav>
-  <div class="side-bottom"><span class="local-dot"></span> 브라우저 내 로컬 분석<small>외부 전송 · 계정 연결 없음</small><div>v1.4 <button id="theme-button" class="theme-button" aria-label="화면 테마 전환">다크 모드</button></div></div>
+  <div class="side-bottom"><span class="local-dot"></span> 브라우저 내 로컬 분석<small>외부 전송 · 계정 연결 없음</small><div>v1.5 <button id="theme-button" class="theme-button" aria-label="화면 테마 전환">다크 모드</button></div></div>
 </aside>
 <main>
   <header class="topbar"><div class="breadcrumb">HPC 사용량 조회 <span>/</span> <span id="breadcrumb-current">전체 현황</span></div><div class="top-actions"><button id="settings-button" class="button subtle">설정</button><details class="export-menu"><summary class="button subtle">내보내기 ↓</summary><div><button id="export-csv">현재 집계 CSV</button><button id="export-session">통합 로그 JSON</button></div></details><button id="import-button" class="button primary">＋ 로그 불러오기</button></div></header>
@@ -44,6 +45,7 @@
       <div class="filter"><label>사용자</label><details id="filter-users" class="multi"><summary>전체 사용자</summary><div class="choices"></div></details></div>
       <div class="filter small"><label for="bucket">표시 간격</label><select id="bucket"><option value="hour">시간별</option><option value="day" selected>일별</option><option value="week">주별</option><option value="month">월별</option></select></div>
       <button class="button primary reset" id="apply-range">조회</button><button class="button subtle reset" id="reset-filters">초기화</button>
+      <div class="date-selection-row"><label for="date-mode">날짜 포함·제외</label><select id="date-mode"><option value="all">전체 날짜</option><option value="include">클릭한 날짜만 포함</option><option value="exclude">클릭한 날짜 제외</option></select><button class="button subtle" id="open-date-calendar">달력에서 여러 날짜 선택</button><span class="help" id="date-selection-summary" aria-live="polite">주말·연휴를 클릭해서 통계에서 제외할 수 있습니다.</span></div>
     </section>
     <form id="pie-form" class="toolbar-inline" style="flex-wrap:wrap;margin-top:10px;font-size:11px"><label for="pie-max">원그래프 최대 가동률 (%)</label><input id="pie-max" type="number" min="0.01" max="100" step="any" value="100" required style="width:85px"><button class="button subtle" type="submit">원그래프 적용</button><span class="help">원의 채움 기준만 변경 · 레이블과 통계는 실제 수치 유지</span></form>
     <div id="range-caption" class="range-caption">날짜를 고른 뒤 조회하세요. 종료일 전체 포함 · 마지막 로그 이후는 연장하지 않습니다.</div>
@@ -53,6 +55,17 @@
   </div>
 </main>
 <input type="file" id="file-input" multiple hidden>
+<dialog id="date-dialog" aria-labelledby="date-dialog-title">
+  <div class="dialog-title"><h2 id="date-dialog-title">달력에서 여러 날짜 선택</h2><button data-close="date-dialog" aria-label="날짜 선택 닫기">×</button></div>
+  <p class="help">날짜를 클릭하면 선택되고 다시 클릭하면 해제됩니다. 월을 옮겨도 선택이 유지됩니다. 시작일·종료일 안의 날짜에 적용합니다.</p>
+  <div class="calendar-mode"><label><input type="radio" name="calendar-mode" value="include">클릭한 날짜만 포함</label><label><input type="radio" name="calendar-mode" value="exclude">클릭한 날짜 제외</label></div>
+  <p class="help">주말·연휴를 빼려면 <strong>클릭한 날짜 제외</strong>를 선택하세요.</p>
+  <div class="calendar-nav"><button id="calendar-prev" class="button subtle" aria-label="이전 달">◀</button><input id="calendar-month" type="month" aria-label="선택할 연월"><button id="calendar-next" class="button subtle" aria-label="다음 달">▶</button></div>
+  <div id="date-calendar" class="calendar-grid" role="group" aria-label="날짜 다중 선택 달력"></div>
+  <div class="toolbar-inline" style="flex-wrap:wrap;margin-top:14px"><button id="calendar-weekends" class="button subtle">조회기간 주말 선택</button><button id="calendar-clear" class="button subtle">선택 모두 해제</button></div>
+  <div id="date-draft-count" aria-live="polite"></div><div id="date-selected-list" class="calendar-selection" aria-label="선택한 날짜"></div>
+  <div class="dialog-actions"><button class="button subtle" data-close="date-dialog">취소</button><button id="apply-date-selection" class="button primary">날짜 적용·조회</button></div>
+</dialog>
 <div id="busy" class="busy" hidden role="status"><div class="spinner"></div><strong id="busy-text">로그를 처리하고 있습니다…</strong><progress id="progress" max="100" value="0"></progress><span>화면 조작과 별도로 계산합니다.</span></div>
 <div id="drop-overlay" hidden>로그 파일을 여기에 놓으세요<div>여러 파일을 한 번에 불러올 수 있습니다.</div></div>
 <div id="toast" role="status" hidden></div>
@@ -98,6 +111,9 @@
   {
     "title": "4. 조회 기간·필터·집계 설정",
     "paragraphs": [
+      "여러 날짜 포함·제외: 시작일·종료일로 전체 기간을 정하고 달력에서 여러 날짜 선택을 누릅니다. 날짜를 클릭해 선택/해제하고 월을 옮겨 추가할 수 있습니다. 클릭한 날짜만 포함은 선택일만, 클릭한 날짜 제외는 선택일을 뺀 나머지를 집계합니다. 주말·연휴를 제외하려면 클릭한 날짜 제외 → 조회기간 주말 선택 → 연휴를 직접 클릭 → 날짜 적용·조회 순서로 사용하세요. 주말 선택은 조회기간의 토요일·일요일 전체에 적용합니다.",
+      "선택 모두 해제는 날짜 목록을 비우고 취소는 달력 조작을 반영하지 않습니다. 전체 날짜는 선택 목록을 적용하지 않으며 초기화는 전체 기간·날짜·필터를 복원합니다. 기간 밖 선택일은 보존되지만 집계하지 않습니다. 포함 방식에 선택일이 없거나 전부 제외한 경우 집계할 날짜가 없다고 표시합니다. 날짜 방식과 선택 목록은 통합 JSON에 저장·복원합니다.",
+      "제외일은 그래프·통계·표·CSV의 CPU/GPU 시간, 작업 실행 구간, 제출·시작 건수에서 제외합니다. 시작 대기 통계는 포함일에 시작한 작업만 사용하고 대기시간은 원본 로그 값으로 유지합니다. 사용률·관측률·활동률 분모도 포함된 시간만 사용합니다. 비연속 날짜의 같은 작업은 고유 작업 한 건으로 세며 실행 시간은 남은 구간만 합칩니다. 주·월 묶음에서도 제외일을 0%로 채우지 않습니다. 날짜 경계는 설정의 시간대이며 정밀 시각 모드에서는 시작·종료일의 남은 부분 시간만 집계합니다. 날짜 필터 사용 중 마지막 상태·GPU 관측값은 포함된 조회 구간 안의 기록에서 찾습니다.",
       "날짜 모드에서 시작일과 종료일을 달력 또는 직접 입력으로 고르고 조회를 누르세요. 종료일 전체를 포함합니다. 예: 11일~12일은 11일 00:00 이상~13일 00:00 미만입니다. X11은 달력 버튼으로 날짜를 선택합니다. 정밀한 구간은 시각 모드에서 입력하며 종료 시각은 미포함입니다. 조회 조건은 모든 그래프·통계·표·CSV에 함께 적용됩니다. 마지막 로그 이후의 시간을 만들어내지는 않습니다.",
       "조회 구간은 시작 포함·종료 미포함 [시작, 종료)입니다. 최신 노드 상태와 GPU 마지막 관측값은 종료 시각의 기록까지 확인합니다. 그룹·노드·사용자는 다중 선택하며 선택이 없으면 전체입니다. 필터는 화면 이동 후에도 유지됩니다. 초기화는 전체 기간과 모든 필터를 복원합니다.",
       "시간대 없는 시각은 기본 한국시간 UTC+09:00이고 설정에서 UTC로 바꿀 수 있습니다. 로그에 Z 또는 시차가 있으면 그 시차를 사용합니다. 기록 주기는 기본 30분이며 실제 수집 주기와 맞추세요. 시간별·일별·주별·월별은 표시 묶음으로, 보간이 아닙니다. 표시 구간이 240개를 넘으면 더 큰 단위로 조정하며 한 번의 조회는 최대 10년입니다.",
@@ -181,7 +197,7 @@
 ]
 </script>
 <script id="hpc-engine" type="text/plain">'use strict';
-/* HPC Usage Monitor 1.4 — standalone, no network dependencies. */
+/* HPC Usage Monitor 1.5 — standalone, no network dependencies. */
 const HPC = (() => {
   const TYPES = ['user_cpu','queue_started','queue_pending','node_cpu','gpu_user','gpu'];
   const SCHEMA = {
@@ -195,7 +211,7 @@ const HPC = (() => {
   const NUMBERS = new Set(['cpus_alloc','mem_alloc_mb','n_jobs','wait_sec','wait_min','alloc_cpus','n_nodes','req_cpus','priority','cpu_total','cpu_alloc','alloc_pct','cpu_load','load_pct','mem_total_mb','mem_pct','gpu_util','mem_used_mb','temp_c','power_w']);
   const KEY = {user_cpu:['timestamp','user','node','partition'],queue_started:['timestamp','job_id','start_time','submit_time'],queue_pending:['timestamp','job_id','submit_time'],node_cpu:['timestamp','node'],gpu_user:['timestamp','node','gpu_index','pid','user','job_id'],gpu:['timestamp','node','gpu_index']};
   const DAY = 86400000, HOUR = 3600000;
-  const defaults = {offset:540,interval:30,startedMode:'snapshot',nodeClock:true,denominator:'observed',bucket:'day',pieMax:100,rangeMode:'dates'};
+  const defaults = {offset:540,interval:30,startedMode:'snapshot',nodeClock:true,denominator:'observed',bucket:'day',pieMax:100,rangeMode:'dates',dateMode:'all',selectedDates:[]};
   const num = v => v === null || v === undefined || String(v).trim()==='' || /^(?:N\/A|NA|nan|null|none|-)$/i.test(String(v).trim()) ? null : Number.isFinite(Number(String(v).replace(/%$/,''))) ? Number(String(v).replace(/%$/,'')) : null;
   const ratio = (a,b) => b>0 ? 100*a/b : null;
   const add = (map,key,fn) => { if(!map.has(key)) map.set(key,fn()); return map.get(key); };
@@ -225,6 +241,7 @@ const HPC = (() => {
     return t-(z[0]==='-'?-1:1)*(oh*60+om)*60000;
   }
   const iso=(t,offset=540)=>new Date(t+offset*60000).toISOString().slice(0,19);
+  const calendarDates=values=>[...new Set((Array.isArray(values)?values:[]).filter(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&time(d+'T00:00:00',0)!==null))].sort();
   const list = v => {
     const key=String(v||'').trim();
     if(!listCache.has(key)){
@@ -319,6 +336,8 @@ const HPC = (() => {
       if(['hour','day','week','month'].includes(r.bucket))v.bucket=r.bucket;
       if(+r.pieMax>0&&+r.pieMax<=100)v.pieMax=+r.pieMax;
       if(['dates','times'].includes(r.rangeMode))v.rangeMode=r.rangeMode;
+      v.dateMode=['all','include','exclude'].includes(r.dateMode)?r.dateMode:'all';
+      v.selectedDates=calendarDates(r.selectedDates);
       store.importedSettings=v;
     }
     const summary={name,rows:0,duplicates:0,invalid:0,types:new Set()};
@@ -386,6 +405,8 @@ const HPC = (() => {
   const waitStats=values=>({waitCount:values.length,waitMean:values.length?values.reduce((a,b)=>a+b,0)/values.length:null,waitMax:values.length?values.reduce((a,b)=>Math.max(a,b)):null});
   function analyze(store,options={}){
     const opt={...defaults,...options},n=normalize(store,opt),T=n.tables,step=Math.max(1,Number(opt.interval)||30)*60000;
+    if(!['all','include','exclude'].includes(opt.dateMode))opt.dateMode='all';
+    opt.selectedDates=calendarDates(opt.selectedDates);
     const available=Object.fromEntries(TYPES.map(k=>[k,store.files.some(f=>f.types.includes(k))||T[k].length>0]));
     const empty={empty:true,meta:metadata(store,n),settings:opt};
     if(n.min===null)return empty;
@@ -393,6 +414,15 @@ const HPC = (() => {
     const snapshotOnly=available.gpu&&from===to&&from===n.min&&to===n.max;
     if(!(to>from)&&!snapshotOnly)return {...empty,error:'집계에는 서로 다른 시각의 기록이 두 개 이상 필요합니다. 종료 시각은 시작 시각보다 뒤여야 합니다.'};
     if((to-from)/DAY>3653)return {...empty,error:'한 번에 조회할 수 있는 기간은 최대 10년입니다.'};
+    const chosenDays=new Set(opt.selectedDates.map(d=>time(d+'T00:00:00',0)/DAY)),allowedDate=t=>opt.dateMode==='all'||chosenDays.has(Math.floor((t+opt.offset*60000)/DAY))===(opt.dateMode==='include');
+    const inSelection=(t,endpoint=false)=>t!==null&&t!==undefined&&t>=from&&(endpoint?t<=to:t<to)&&(opt.dateMode==='all'||snapshotOnly||t<to)&&allowedDate(t);
+    const windows=[];
+    for(let t=from;t<to;){
+      const end=opt.dateMode==='all'?to:Math.min(to,Math.floor((t+opt.offset*60000)/DAY)*DAY-opt.offset*60000+DAY);
+      if(allowedDate(t)){if(windows.length&&windows.at(-1)[1]===t)windows.at(-1)[1]=end;else windows.push([t,end]);}
+      t=end;
+    }
+    if(!windows.length&&!(snapshotOnly&&inSelection(from,true)))return {...empty,error:'집계할 날짜가 없습니다. 달력에서 날짜를 선택하거나 포함·제외 방식을 변경하세요.'};
     if(opt.bucket==='hour'&&(to-from)/HOUR>240)opt.bucket='day';
     if(opt.bucket==='day'&&(to-from)/DAY>240)opt.bucket='week';
     if(opt.bucket==='week'&&(to-from)/DAY/7>240)opt.bucket='month';
@@ -403,9 +433,13 @@ const HPC = (() => {
     const rowGroup=r=>!opt.groups?.length||chooseGroups(list(r.partition||r.partitions));
     const nodeStats=new Map(),groupStats=new Map(),userStats=new Map(),gpuStats=new Map(),daily=new Map(),heat=new Map(),gpuHeat=new Map();
     const newDay=t=>({t,submitted:new Set(),started:new Set(),running:new Set(),jobSec:0,coreSec:0,capacitySec:0,observed:0,busy:0,gpuSec:0,gpuWeight:0,pendingMax:0,wait:[]});
-    for(let b=bucketStart(from,opt.bucket,opt.offset);b<to;b=nextBucket(b,opt.bucket,opt.offset))daily.set(b,newDay(b));
+    for(const [a,end]of windows)for(let b=bucketStart(a,opt.bucket,opt.offset);b<end;b=nextBucket(b,opt.bucket,opt.offset))if(!daily.has(b))daily.set(b,newDay(b));
     const day=t=>add(daily,bucketStart(t,opt.bucket,opt.offset),()=>newDay(bucketStart(t,opt.bucket,opt.offset)));
-    const clip=(a,b)=>[Math.max(a,from),Math.min(b,to)];
+    const clip=(a,b)=>{
+      let lo=0,hi=windows.length;while(lo<hi){const mid=(lo+hi)>>1;if(windows[mid][1]<=a)lo=mid+1;else hi=mid;}
+      const out=[];for(let i=lo;i<windows.length&&windows[i][0]<b;i++)out.push([Math.max(a,windows[i][0]),Math.min(b,windows[i][1])]);return out;
+    };
+    function* accounted(source){for(const it of source)for(const [a,b]of clip(it.a,it.b))yield {a,b,r:it.r};}
     const userIntervals=intervals(T.user_cpu,r=>JSON.stringify([r.user,r.node,r.partition]),opt.nodeClock?[...new Set([...n.times.user_cpu,...n.times.node_cpu])].sort((a,b)=>a-b):n.times.user_cpu,step,opt.nodeClock?Math.max(n.times.user_cpu.at(-1)??-Infinity,n.times.node_cpu.at(-1)??-Infinity):n.times.user_cpu.at(-1));
     const uAt=new Map();
     for(const r of windowRows(T.user_cpu,from-step,to))if(selected.has(r.node)&&userMatch(r)&&rowGroup(r)){
@@ -418,9 +452,9 @@ const HPC = (() => {
     nodeNames.filter(name=>n.nodes.get(name)?.hasCPU).forEach(name=>nodeStats.set(name,stats()));
     const nodeInt=intervals(windowRows(T.node_cpu,from-step,to),r=>r.node,n.times.node_cpu,step,n.times.node_cpu.at(-1));
     let physicalCapacity=0;
-    for(const it of nodeInt){
+    for(const it of accounted(nodeInt)){
       const r=it.r;if(!selected.has(r.node))continue;
-      const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+      const {a,b}=it;
       if(r.cpu_total!==null)physicalCapacity+=r.cpu_total*(b-a)/1000;
       const user=uAt.get(JSON.stringify([r.t,r.node]));
       /* User allocation is only attributed at a synchronized sample. */
@@ -441,9 +475,9 @@ const HPC = (() => {
         if(cpu!==null){h.obs+=sec;h.core+=cpu*sec;if(r.cpu_total!==null)h.cap+=r.cpu_total*sec;if(cpu>0)h.busy+=sec;}
       });
     }
-    for(const it of userIntervals){
+    for(const it of accounted(userIntervals)){
       const r=it.r;if(!selected.has(r.node)||!userMatch(r)||!rowGroup(r))continue;
-      const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+      const {a,b}=it;
       const u=add(userStats,r.user,stats);u.nodes.add(r.node);
       const sec=(b-a)/1000;if(r.cpus_alloc!==null){u.coreSec+=r.cpus_alloc*sec;u.observed+=sec;if(!available.node_cpu)splits(a,b,opt.bucket,opt.offset,(bt,s)=>{day(bt).coreSec+=r.cpus_alloc*s;});}
     }
@@ -478,9 +512,9 @@ const HPC = (() => {
       for(const t of j.observations){const next=startNext.get(t);if(next!==null&&next!==undefined){const b=Math.min(t+step,next);if(b>t)j.ranges.push([t,b]);}}
     }
     const visibleJobs=[],pendingAt=new Map(),reason=new Map();
-    const rangeSec=(to-from)/1000;
+    const rangeSec=windows.reduce((s,[a,b])=>s+(b-a)/1000,0);
     let submitted=0,started=0,running=0,inferredEnded=0,totalJobSec=0;const waits=[],activity=new Map();
-    const queueClock=[...new Set([...n.times.queue_pending,...n.times.queue_started,...(opt.nodeClock?n.times.node_cpu:[])])].filter(t=>t>=from&&t<=to).sort((a,b)=>a-b);
+    const queueClock=[...new Set([...n.times.queue_pending,...n.times.queue_started,...(opt.nodeClock?n.times.node_cpu:[])])].filter(t=>inSelection(t,true)).sort((a,b)=>a-b);
     const lastQueue=queueClock.at(-1)??null;
     const currentPending=new Map();
     for(const r of T.queue_pending)if(r.t===lastQueue)currentPending.set(getJob(r,'queue_pending').key,r);
@@ -494,8 +528,8 @@ const HPC = (() => {
       /* Known start time refines only the first observed, contiguous interval. */
       const firstEvidence=(j.hasCPU?j.cpuObservations:j.observations).reduce((a,b)=>Math.min(a,b),Infinity);
       if(ranges.length&&ranges[0][0]===firstEvidence&&j.start!==null&&j.start<=ranges[0][0]&&ranges[0][0]-j.start<=step)ranges[0][0]=j.start;
-      ranges=mergeRanges(ranges.map(r=>clip(...r)).filter(r=>r[1]>r[0]));
-      const sec=seconds(ranges),isSub=j.submit!==null&&j.submit>=from&&j.submit<to,isStart=j.start!==null&&j.start>=from&&j.start<to;
+      ranges=mergeRanges(ranges.flatMap(r=>clip(...r)).filter(r=>r[1]>r[0]));
+      const sec=seconds(ranges),isSub=inSelection(j.submit),isStart=inSelection(j.start);
       const pendingRecord=currentPending.get(j.key);
       const pending=pendingRecord&&!(j.start!==null&&j.start<=lastQueue);
       if(!sec&&!isSub&&!isStart&&!pending)continue;
@@ -513,50 +547,49 @@ const HPC = (() => {
       if(sec){running++;u.jobs.add(j.key);u.jobSec=(u.jobSec||0)+sec;totalJobSec+=sec;add(activity,j.user,()=>[]).push(...ranges);
         for(const [a,b] of ranges)splits(a,b,opt.bucket,opt.offset,(bt,s)=>{day(bt).running.add(j.key);day(bt).jobSec+=s;});
       }
-      const obs=[...new Set(j.hasCPU?j.cpuObservations:j.observations)].sort((a,b)=>a-b),last=obs.filter(t=>t<=to).at(-1);
-      const clock=j.hasCPU?clockNext:startNext,nxt=clock.get(last),ended=last!==undefined&&nxt!==null&&nxt!==undefined&&nxt-last<=step*1.1&&nxt<=to;
+      const obs=[...new Set(j.hasCPU?j.cpuObservations:j.observations)].sort((a,b)=>a-b),last=obs.filter(t=>t<=to&&(opt.dateMode==='all'||inSelection(t,true))).at(-1);
+      const clock=j.hasCPU?clockNext:startNext,nxt=clock.get(last),ended=last!==undefined&&nxt!==null&&nxt!==undefined&&nxt-last<=step*1.1&&nxt<=to&&(opt.dateMode==='all'||inSelection(nxt,true));
       const status=pending?'대기':ended?'종료 추정':sec?'종료 미확인':isStart?'시작 기록':'제출 기록';
       if(ended&&sec)inferredEnded++;
       if(pending){pendingAt.set(j.key,{...j,pendingRecord});const r=pendingRecord.reason||'미상';reason.set(r,(reason.get(r)||0)+1);}
       const groupJobRanges=new Map();
-      for(const [node,rs]of j.nodeRanges){const refined=mergeRanges(rs);if(refined.length&&refined[0][0]===firstEvidence&&j.start!==null&&j.start<=firstEvidence&&firstEvidence-j.start<=step)refined[0][0]=j.start;const clipped=refined.map(r=>clip(...r)),duration=seconds(clipped);if(duration>0){add(perNodeJobs,node,()=>new Set()).add(j.key);perNodeJobSeconds.set(node,(perNodeJobSeconds.get(node)||0)+duration);for(const g of n.nodes.get(node)?.groups||[]){add(perGroupJobs,g,()=>new Set()).add(j.key);add(groupJobRanges,g,()=>[]).push(...clipped);}}}
+      for(const [node,rs]of j.nodeRanges){const refined=mergeRanges(rs);if(refined.length&&refined[0][0]===firstEvidence&&j.start!==null&&j.start<=firstEvidence&&firstEvidence-j.start<=step)refined[0][0]=j.start;const clipped=refined.flatMap(r=>clip(...r)),duration=seconds(clipped);if(duration>0){add(perNodeJobs,node,()=>new Set()).add(j.key);perNodeJobSeconds.set(node,(perNodeJobSeconds.get(node)||0)+duration);for(const g of n.nodes.get(node)?.groups||[]){add(perGroupJobs,g,()=>new Set()).add(j.key);add(groupJobRanges,g,()=>[]).push(...clipped);}}}
       for(const [g,rs]of groupJobRanges)perGroupJobSeconds.set(g,(perGroupJobSeconds.get(g)||0)+seconds(rs));
       const waitValue=j.start!==null&&j.start<=to?(j.wait??(j.submit!==null?(j.start-j.submit)/1000:null)):null;
       visibleJobs.push({id:j.id,user:j.user,partition:j.partition,nodes:[...j.nodes].join(', '),submit:j.submit,start:j.start!==null&&j.start<=to?j.start:null,last:last??null,end:ended?nxt:null,status,state:j.state,wallHours:sec?sec/3600:null,waitMin:waitValue===null?null:waitValue/60,alloc:j.alloc,source:[...j.source].join(', '),key:j.key,ranges});
     }
     const pendingSamples=new Map();
-    for(const r of T.queue_pending)if(r.t>=from&&r.t<to&&userMatch(r)&&rowGroup(r)&&!opt.nodes?.length)add(pendingSamples,r.t,()=>new Set()).add(JSON.stringify([r.job_id,r.sub]));
+    for(const r of T.queue_pending)if(inSelection(r.t)&&userMatch(r)&&rowGroup(r)&&!opt.nodes?.length)add(pendingSamples,r.t,()=>new Set()).add(JSON.stringify([r.job_id,r.sub]));
     for(const [t,set] of pendingSamples)day(t).pendingMax=Math.max(day(t).pendingMax,set.size);
     const gpuUserInt=intervals(windowRows(T.gpu_user,from-step,to),r=>JSON.stringify([r.node,r.gpu_index,r.pid,r.user,r.job_id]),opt.nodeClock?[...new Set([...n.times.gpu_user,...n.times.gpu])].sort((a,b)=>a-b):n.times.gpu_user,step,opt.nodeClock?Math.max(n.times.gpu_user.at(-1)??-Infinity,n.times.gpu.at(-1)??-Infinity):n.times.gpu_user.at(-1));
     const userGPURanges=new Map(),allowedGPUs=new Set(),gpuMem=new Map();
-    for(const r of windowRows(T.gpu_user,from,to))if(r.t>=from&&r.t<=to&&selected.has(r.node)&&userMatch(r)){
+    for(const r of windowRows(T.gpu_user,from,to))if(inSelection(r.t,true)&&selected.has(r.node)&&userMatch(r)){
       const gid=r.node+'/GPU'+r.gpu_index;allowedGPUs.add(gid);
       add(gpuMem,gid,()=>({memSec:0,processSec:0,users:new Set()})).users.add(r.user);
     }
-    for(const it of gpuUserInt){const r=it.r;if(!selected.has(r.node)||!userMatch(r))continue;const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+    for(const it of accounted(gpuUserInt)){const r=it.r;if(!selected.has(r.node)||!userMatch(r))continue;const {a,b}=it;
       const u=add(userStats,r.user,stats),sec=(b-a)/1000;u.nodes.add(r.node);if(r.mem_used_mb!==null){u.gpuMemSec+=r.mem_used_mb*sec;u.gpuWeight+=sec;}
       const gid=r.node+'/GPU'+r.gpu_index;allowedGPUs.add(gid);add(userGPURanges,JSON.stringify([r.user,gid]),()=>[]).push([a,b]);
       const gm=add(gpuMem,gid,()=>({memSec:0,processSec:0,users:new Set()}));gm.users.add(r.user);if(r.mem_used_mb!==null)gm.memSec+=r.mem_used_mb*sec;gm.processSec+=sec;
     }
     for(const [key,ranges]of userGPURanges){const [user]=JSON.parse(key);add(userStats,user,stats).gpuDeviceSec=(userStats.get(user).gpuDeviceSec||0)+seconds(ranges);}
     const latestGpu=new Map();
-    for(const r of windowRows(T.gpu,from,to))if(r.t>=from&&r.t<=to&&selected.has(r.node)){
+    for(const r of windowRows(T.gpu,from,to))if(inSelection(r.t,true)&&selected.has(r.node)){
       const gid=r.node+'/GPU'+r.gpu_index;if(filteringUsers&&!allowedGPUs.has(gid))continue;
       add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));
       latestGpu.set(gid,{id:gid,node:r.node,name:r.gpu_name,t:r.t,purpose:purposeFor(n.nodes.get(r.node)?.groups||[],r.node),util:r.gpu_util,memPct:r.mem_pct,temp:r.temp_c,power:r.power_w,users:[...(gpuMem.get(gid)?.users||[])]});
     }
     const gpuInt=intervals(windowRows(T.gpu,from-step,to),r=>r.node+'/GPU'+r.gpu_index,n.times.gpu,step,n.times.gpu.at(-1));
-    for(const it of gpuInt){const r=it.r,gid=r.node+'/GPU'+r.gpu_index;if(!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const [a,b]=clip(it.a,it.b);if(b<=a)continue;
+    for(const it of accounted(gpuInt)){const r=it.r,gid=r.node+'/GPU'+r.gpu_index;if(!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const {a,b}=it;
       const g=add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));
-      if(r.temp_c!==null)g.tempMax=Math.max(g.tempMax??-Infinity,r.temp_c);if(r.mem_used_mb!==null)g.memMax=Math.max(g.memMax??-Infinity,r.mem_used_mb);
       splits(a,b,opt.bucket,opt.offset,(bt,sec)=>{
         const d=day(bt),h=add(gpuHeat,JSON.stringify([gid,bt]),()=>({node:gid,t:bt,value:0,weight:0}));
         g.observed+=sec;if(r.gpu_util!==null){g.gpuSec+=r.gpu_util*sec;g.gpuWeight+=sec;d.gpuSec+=r.gpu_util*sec;d.gpuWeight+=sec;h.value+=r.gpu_util*sec;h.weight+=sec;}
         if(r.mem_pct!==null){g.memSec+=r.mem_pct*sec;g.memWeight+=sec;}if(r.power_w!==null){g.powerSec+=r.power_w*sec;g.powerWeight+=sec;}
       });
     }
-    for(const r of windowRows(T.gpu,from,to)){const gid=r.node+'/GPU'+r.gpu_index;if(r.t<from||r.t>=to||!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const g=add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));if(r.temp_c!==null)g.tempMax=Math.max(g.tempMax??-Infinity,r.temp_c);if(r.mem_used_mb!==null)g.memMax=Math.max(g.memMax??-Infinity,r.mem_used_mb);}
-    const states=new Map();for(const r of T.node_cpu)if(r.t<=to)states.set(r.node,r.state);
+    for(const r of windowRows(T.gpu,from,to)){const gid=r.node+'/GPU'+r.gpu_index;if(!inSelection(r.t)||!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const g=add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));if(r.temp_c!==null)g.tempMax=Math.max(g.tempMax??-Infinity,r.temp_c);if(r.mem_used_mb!==null)g.memMax=Math.max(g.memMax??-Infinity,r.mem_used_mb);}
+    const states=new Map();for(const r of T.node_cpu)if(r.t<=to&&(opt.dateMode==='all'||inSelection(r.t,true)))states.set(r.node,r.state);
     for(const name of nodeWaits.keys())add(nodeStats,name,stats);
     for(const name of groupWaits.keys())add(groupStats,name,stats);
     const ns=[...nodeStats].map(([name,s])=>({...s,name,purpose:purposeFor(n.nodes.get(name)?.groups||[],name),...waitStats(nodeWaits.get(name)||[]),state:states.get(name)||'',groups:[...(n.nodes.get(name)?.groups||[])].join(', '),type:n.nodes.get(name)?.nodeType||'',cores:n.nodes.get(name)?.cores,jobs:hasJobEvidence?(perNodeJobs.get(name)?.size||0):null,jobHours:hasJobEvidence?(perNodeJobSeconds.get(name)||0)/3600:null,coreHours:filteringUsers&&!available.user_cpu?null:s.coreSec/3600,busyHours:s.busy/3600,busyPct:ratio(s.busy,opt.denominator==='calendar'?rangeSec:s.observed),coveredBusyPct:ratio(s.busy,s.observed),allocPct:ratio(s.coreSec,opt.denominator==='calendar'?(n.nodes.get(name)?.cores??0)*rangeSec:s.capacitySec),coverage:ratio(s.observed,rangeSec),memPct:s.memWeight?s.memSec/s.memWeight:null,loadPct:s.loadWeight?s.loadSec/s.loadWeight:null}));
@@ -565,16 +598,17 @@ const HPC = (() => {
     const users=[...userStats].map(([name,s])=>({name,coreHours:available.user_cpu?s.coreSec/3600:null,jobs:hasJobEvidence?s.jobs.size:null,submitted:available.queue_pending||available.queue_started?s.submitted||0:null,started:available.queue_started?s.started||0:null,jobHours:hasJobEvidence?(s.jobSec||0)/3600:null,activityPct:hasJobEvidence?ratio(seconds(activity.get(name)||[]),rangeSec):null,contribution:available.user_cpu?ratio(s.coreSec,opt.denominator==='calendar'?fullCore:physicalCapacity):null,gpuHours:available.gpu_user?(s.gpuDeviceSec||0)/3600:null,gpuMemHours:available.gpu_user?(s.gpuMemSec||0)/3600:null,nodes:[...s.nodes].join(', ')})).sort((a,b)=>(b.coreHours||b.gpuHours||0)-(a.coreHours||a.gpuHours||0));
     const groups=[...groupStats].map(([name,s])=>({name,purpose:purposeFor([name]),...waitStats(groupWaits.get(name)||[]),nodeCount:s.nodes.size,jobs:hasJobEvidence?(perGroupJobs.get(name)?.size||0):null,jobHours:hasJobEvidence?(perGroupJobSeconds.get(name)||0)/3600:null,coreHours:filteringUsers&&!available.user_cpu?null:s.coreSec/3600,busyHours:s.busy/3600,allocPct:ratio(s.coreSec,opt.denominator==='calendar'?rangeSec*[...s.nodes].reduce((a,x)=>a+(n.nodes.get(x)?.cores||0),0):s.capacitySec),busyPct:ratio(s.busy,opt.denominator==='calendar'?s.nodes.size*rangeSec:s.observed),coverage:ratio(s.observed,s.nodes.size*rangeSec)}));
     const gpu=[...gpuStats.values()].map(g=>({id:g.id,node:g.node,name:g.name,purpose:purposeFor(n.nodes.get(g.node)?.groups||[],g.node),util:g.gpuWeight?g.gpuSec/g.gpuWeight:null,memPct:g.memWeight?g.memSec/g.memWeight:null,tempMax:g.tempMax,power:g.powerWeight?g.powerSec/g.powerWeight:null,energyWh:g.powerWeight?g.powerSec/3600:null,memMax:g.memMax,coverage:ratio(g.observed,rangeSec),users:[...(gpuMem.get(g.id)?.users||[])].join(', ')}));
-    const activeClockRows=T.node_cpu.filter(r=>r.t>=from&&r.t<=to&&selected.has(r.node)),lastNodeTs=activeClockRows.at(-1)?.t;
+    const activeClockRows=T.node_cpu.filter(r=>inSelection(r.t,true)&&selected.has(r.node)),lastNodeTs=activeClockRows.at(-1)?.t;
     const latestNodes=lastNodeTs!==undefined?activeClockRows.filter(r=>r.t===lastNodeTs).map(r=>({node:r.node,state:r.state,cpu:r.cpu_alloc,total:r.cpu_total,mem:r.mem_pct})):[]; 
-    return {empty:false,snapshotOnly,settings:opt,meta:metadata(store,n),from,to,summary:{submitted:available.queue_pending||available.queue_started?submitted:null,started:available.queue_started?started:null,running:hasJobEvidence?running:null,jobHours:hasJobEvidence?totalJobSec/3600:null,inferredEnded,coreHours:filteringUsers&&!available.user_cpu?null:available.node_cpu?cores/3600:available.user_cpu?users.reduce((s,u)=>s+(u.coreHours||0),0):null,busyPct:ratio(busy,opt.denominator==='calendar'?fullNode:observed),coveredBusyPct:ratio(busy,observed),allocPct:ratio(cores,opt.denominator==='calendar'?fullCore:capacity),coverage:ratio(observed,fullNode),nodes:nodeNames.length,users:users.length,waitMedian:med(waits),...waitStats(waits),pending:opt.nodes?.length||!available.queue_pending?null:pendingAt.size,gpuUtil:(()=>{let v=0,w=0;for(const g of gpuStats.values()){v+=g.gpuSec;w+=g.gpuWeight;}return w?v/w:null;})()},
+    return {empty:false,snapshotOnly,selectedSeconds:rangeSec,settings:opt,meta:metadata(store,n),from,to,summary:{submitted:available.queue_pending||available.queue_started?submitted:null,started:available.queue_started?started:null,running:hasJobEvidence?running:null,jobHours:hasJobEvidence?totalJobSec/3600:null,inferredEnded,coreHours:filteringUsers&&!available.user_cpu?null:available.node_cpu?cores/3600:available.user_cpu?users.reduce((s,u)=>s+(u.coreHours||0),0):null,busyPct:ratio(busy,opt.denominator==='calendar'?fullNode:observed),coveredBusyPct:ratio(busy,observed),allocPct:ratio(cores,opt.denominator==='calendar'?fullCore:capacity),coverage:ratio(observed,fullNode),nodes:nodeNames.length,users:users.length,waitMedian:med(waits),...waitStats(waits),pending:opt.nodes?.length||!available.queue_pending?null:pendingAt.size,gpuUtil:(()=>{let v=0,w=0;for(const g of gpuStats.values()){v+=g.gpuSec;w+=g.gpuWeight;}return w?v/w:null;})()},
       series:[...daily.values()].sort((a,b)=>a.t-b.t).map(d=>({t:d.t,submitted:available.queue_pending||available.queue_started?d.submitted.size:null,started:available.queue_started?d.started.size:null,running:hasJobEvidence?d.running.size:null,jobHours:hasJobEvidence?d.jobSec/3600:null,coreHours:d.capacitySec||!available.node_cpu&&available.user_cpu?d.coreSec/3600:null,busyPct:ratio(d.busy,d.observed),allocPct:ratio(d.coreSec,d.capacitySec),pendingMax:available.queue_pending&&!opt.nodes?.length?d.pendingMax:null,gpuUtil:d.gpuWeight?d.gpuSec/d.gpuWeight:null,waitMedian:med(d.wait),...waitStats(d.wait)})),
       nodes:ns.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true})),groups,users,gpu,jobs:visibleJobs.sort((a,b)=>(b.start??b.submit??b.last??0)-(a.start??a.submit??a.last??0)),
-      heat:[...heat.values()].map(h=>({node:h.node,t:h.t,value:ratio(h.core,h.cap),coverage:ratio(h.obs,(Math.min(to,nextBucket(h.t,opt.bucket,opt.offset))-Math.max(from,h.t))/1000)})),
-      gpuHeat:[...gpuHeat.values()].map(h=>({node:h.node,t:h.t,value:h.weight?h.value/h.weight:null,coverage:ratio(h.weight,(Math.min(to,nextBucket(h.t,opt.bucket,opt.offset))-Math.max(from,h.t))/1000)})),
+      heat:[...heat.values()].map(h=>({node:h.node,t:h.t,value:ratio(h.core,h.cap),coverage:ratio(h.obs,clip(h.t,nextBucket(h.t,opt.bucket,opt.offset)).reduce((s,[a,b])=>s+(b-a)/1000,0))})),
+      gpuHeat:[...gpuHeat.values()].map(h=>({node:h.node,t:h.t,value:h.weight?h.value/h.weight:null,coverage:ratio(h.weight,clip(h.t,nextBucket(h.t,opt.bucket,opt.offset)).reduce((s,[a,b])=>s+(b-a)/1000,0))})),
       reasons:[...reason].map(([name,count])=>({name,count})),pendingRows:[...pendingAt.values()].map(j=>({id:j.id,user:j.user,partition:j.partition,cpus:j.pendingRecord.req_cpus,waitMin:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(j.submit!==null?(lastQueue-j.submit)/1000:null)))===null?null:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(lastQueue-j.submit)/1000))/60,reason:j.pendingRecord.reason,priority:j.pendingRecord.priority})),
       latestNodes,latestGpu:[...latestGpu.values()].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})),lastQueue,lastNodeTs,
       notices:[
+        ...(opt.dateMode!=='all'?[(opt.dateMode==='include'?'선택한 날짜만 포함':'선택한 날짜 제외')+': '+opt.selectedDates.length+'일 선택. 포함된 시간만 집계하며 사용률·관측률 분모에서도 제외 날짜를 뺍니다.']:[]),
         '30분 사이에 시작하고 끝난 작업은 로그에 잡히지 않을 수 있습니다. 제출·시작 건수는 관측된 작업 기준입니다.',
         '작업 소멸은 종료로 추정하며 성공·실패를 의미하지 않습니다. 종료 시각은 다음 확인 기록 시각, 오차는 최대 기록 주기 수준입니다.',
         '각 상태를 다음 기록까지 유지한다고 가정합니다. 긴 기록 공백은 최대 한 주기까지만 적분하고, 마지막 기록 이후는 연장하지 않습니다.',
@@ -924,6 +958,61 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     const dates=S.options.rangeMode==='dates',a=codec.time($('#from').value+(dates?'T00:00:00':''),+S.options.offset),last=codec.time($('#to').value+(dates?'T00:00:00':''),+S.options.offset);
     return [a,last===null?null:last+(dates?86400000:0)];
   }
+  const dateModeNames={all:'전체 날짜',include:'클릭한 날짜만 포함',exclude:'클릭한 날짜 제외'};
+  let dateDraft=null,dateMonth='';
+  function cleanSelectedDates(values){
+    return [...new Set((Array.isArray(values)?values:[]).filter(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&(()=>{const t=codec.time(d+'T00:00:00',+S.options.offset);return t!==null&&codec.iso(t,+S.options.offset).slice(0,10)===d;})()))].sort();
+  }
+  function syncDateFilter(){
+    $('#date-mode').value=S.options.dateMode;
+    const dates=S.options.selectedDates||[];
+    $('#date-selection-summary').textContent=S.options.dateMode==='all'?'전체 날짜를 집계합니다. 주말·연휴는 달력에서 골라 제외하세요.':dateModeNames[S.options.dateMode]+' · '+dates.length+'일 선택 · 조회 버튼으로 적용';
+  }
+  function drawDateCalendar(){
+    const [year,month]=dateMonth.split('-').map(Number),first=new Date(dateMonth+'-01T00:00:00Z'),count=new Date(Date.UTC(year,month,0)).getUTCDate();
+    $('#calendar-month').value=dateMonth;
+    const [a,b]=rangeValues(),bounded=a!==null&&b!==null&&b>a,grid=$('#date-calendar');
+    grid.dataset.mode=dateDraft.mode;
+    for(const input of $$('[name="calendar-mode"]'))input.checked=input.value===dateDraft.mode;
+    let html=['월','화','수','목','금','토','일'].map(x=>'<span class="weekday">'+x+'</span>').join('');
+    html+='<span></span>'.repeat((first.getUTCDay()+6)%7);
+    for(let day=1;day<=count;day++){
+      const key=dateMonth+'-'+String(day).padStart(2,'0'),t=codec.time(key+'T00:00:00',+S.options.offset),selected=dateDraft.dates.has(key),disabled=bounded&&(t>=b||t+86400000<=a),weekend=[0,6].includes(new Date(key+'T00:00:00Z').getUTCDay());
+      html+='<button class="calendar-day'+(weekend?' weekend':'')+'" data-date="'+key+'" aria-label="'+key+'" aria-pressed="'+selected+'" '+(disabled?'disabled':'')+'>'+day+(selected?'<small>'+(dateDraft.mode==='include'?'포함':'제외')+'</small>':'')+'</button>';
+    }
+    grid.innerHTML=html;
+    const dates=[...dateDraft.dates].sort(),within=dates.filter(d=>{const t=codec.time(d+'T00:00:00',+S.options.offset);return !bounded||t<b&&t+86400000>a;}).length;
+    $('#date-draft-count').textContent=dateModeNames[dateDraft.mode]+' · '+dates.length+'일 선택 (조회기간 내 '+within+'일)';
+    $('#date-selected-list').innerHTML=dates.map(d=>'<button data-remove-date="'+d+'" aria-label="'+d+' 선택 해제">'+d+' ×</button>').join('');
+  }
+  function openDateCalendar(){
+    dateDraft={mode:S.options.dateMode==='include'?'include':'exclude',dates:new Set(cleanSelectedDates(S.options.selectedDates))};
+    const [a]=rangeValues(),anchor=a??S.meta?.min??Date.now();dateMonth=codec.iso(anchor,+S.options.offset).slice(0,7);
+    drawDateCalendar();$('#date-dialog').showModal();
+  }
+  function moveDateMonth(delta){
+    const [y,m]=dateMonth.split('-').map(Number),d=new Date(Date.UTC(y,m-1+delta,1));
+    if(d.getUTCFullYear()<100||d.getUTCFullYear()>9999)return;
+    dateMonth=d.toISOString().slice(0,7);drawDateCalendar();
+  }
+  $('#open-date-calendar').onclick=openDateCalendar;
+  $('#date-mode').onchange=()=>{S.options.dateMode=$('#date-mode').value;syncDateFilter();};
+  $('#calendar-prev').onclick=()=>moveDateMonth(-1);$('#calendar-next').onclick=()=>moveDateMonth(1);
+  $('#calendar-month').onchange=()=>{if(/^\d{4}-\d{2}$/.test($('#calendar-month').value)){dateMonth=$('#calendar-month').value;drawDateCalendar();}};
+  for(const input of $$('[name="calendar-mode"]'))input.onchange=()=>{dateDraft.mode=input.value;drawDateCalendar();};
+  $('#date-calendar').onclick=e=>{const button=e.target.closest('[data-date]');if(!button||button.disabled)return;const key=button.dataset.date;dateDraft.dates.has(key)?dateDraft.dates.delete(key):dateDraft.dates.add(key);drawDateCalendar();$('#date-calendar [data-date="'+key+'"]').focus();};
+  $('#date-selected-list').onclick=e=>{const button=e.target.closest('[data-remove-date]');if(button){dateDraft.dates.delete(button.dataset.removeDate);drawDateCalendar();}};
+  $('#calendar-clear').onclick=()=>{dateDraft.dates.clear();drawDateCalendar();};
+  $('#calendar-weekends').onclick=()=>{
+    const [a,b]=rangeValues();if(a===null||b===null||b<=a||b-a>3653*86400000)return toast('먼저 시작일·종료일을 확인하세요. 최대 10년까지 선택할 수 있습니다.');
+    const first=Math.floor((a+S.options.offset*60000)/86400000)*86400000;
+    for(let t=first;t<b+S.options.offset*60000;t+=86400000)if([0,6].includes(new Date(t).getUTCDay()))dateDraft.dates.add(new Date(t).toISOString().slice(0,10));
+    drawDateCalendar();
+  };
+  $('#apply-date-selection').onclick=()=>{S.options.dateMode=dateDraft.mode;S.options.selectedDates=[...dateDraft.dates].sort();syncDateFilter();$('#date-dialog').close();clearTimeout(debounce);analyze();};
+  if(!['all','include','exclude'].includes(S.options.dateMode))S.options.dateMode='all';
+  S.options.selectedDates=cleanSelectedDates(S.options.selectedDates);
+  syncDateFilter();
   configureRange();
   let analysisGeneration=0,analysisRunning=false,analysisPending=false;
   async function analyze(){
@@ -939,12 +1028,14 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     try{
       const d=await api('analyze',{options:S.options});if(generation!==analysisGeneration)return;
       S.data=d;S.meta=d.meta;S.tablePages={};S.piePages={};S.jobPage=0;S.jobRows=d.jobs||[];S.jobTotal=d.jobsTotal||0;
+      if(d.empty){$('#range-caption').textContent='조회 조건에 맞는 집계 결과가 없습니다.';$('#notice').hidden=false;$('#notice').className='notice error';$('#notice').textContent=d.error||'로그를 불러오세요.';render();return;}
       if(d.settings?.bucket!==S.options.bucket){S.options.bucket=d.settings.bucket;$('#bucket').value=d.settings.bucket;toast('긴 조회기간에 맞춰 표시 간격을 조정했습니다.');}
       const counts=Object.values(S.meta.counts).reduce((a,b)=>a+b,0);
       $('#dataset-badge').textContent=S.meta.demo?'예제 데이터 · 실제 로그 아님':f(counts,0)+'개 기록';
       $('#dataset-badge').className='badge '+(S.meta.demo?'demo':'ready');
       const tz=+S.options.offset===540?'한국시간 · UTC+09:00':'UTC';
       $('#range-caption').innerHTML='<span>'+esc(d.settings.rangeMode==='dates'?codec.iso(d.from,+S.options.offset).slice(0,10)+' — '+codec.iso(d.to-(d.snapshotOnly?0:1),+S.options.offset).slice(0,10)+' (종료일 포함)':stamp(d.from)+' — '+stamp(d.to))+' · '+tz+'</span><span>'+S.options.interval+'분 기록 · '+Object.values(S.meta.counts).filter(v=>v>0).length+'/6종 · 마지막 기록 '+esc(stamp(S.meta.max))+'</span>';
+      if(d.settings.dateMode!=='all')$('#range-caption').firstElementChild.textContent+=' · '+dateModeNames[d.settings.dateMode]+' · 선택 '+d.settings.selectedDates.length+'일 · 집계 '+f(d.selectedSeconds/3600)+'시간';
       const notes=[];
       if(snapshotOnly)notes.push('단일 GPU 스냅샷: 마지막 관측값을 표시하며 기간 평균·점유시간은 계산하지 않습니다.');
       if(S.meta.demo)notes.push('현재 화면은 내장 예제입니다. 실제 로그를 불러오면 예제 데이터는 교체됩니다.');
@@ -971,6 +1062,8 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
         if(['hour','day','week','month'].includes(r.bucket)){$('#bucket').value=r.bucket;S.options.bucket=r.bucket;}
         if(+r.pieMax>0&&+r.pieMax<=100){S.options.pieMax=+r.pieMax;$('#pie-max').value=r.pieMax;}
         if(['dates','times'].includes(r.rangeMode))S.options.rangeMode=r.rangeMode;
+        S.options.dateMode=['all','include','exclude'].includes(r.dateMode)?r.dateMode:'all';
+        S.options.selectedDates=cleanSelectedDates(r.selectedDates);syncDateFilter();
         persist();
       }
       S.meta=res.meta;S.data=null;setRange(S.meta);fillFilters(S.meta,true);
@@ -986,7 +1079,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   async function loadDemo(){
     if(S.loading)return;
     setBusy(true,'예제 데이터를 준비하고 있습니다…');
-    try{S.meta=await api('demo',{settings:S.options});setRange(S.meta);fillFilters(S.meta,true);S.options.bucket='day';$('#bucket').value='day';await analyze();}
+    try{S.options.dateMode='all';S.options.selectedDates=[];syncDateFilter();S.meta=await api('demo',{settings:S.options});setRange(S.meta);fillFilters(S.meta,true);S.options.bucket='day';$('#bucket').value='day';await analyze();}
     catch(e){toast(e.message);}finally{setBusy(false);}
   }
   async function refreshJobs(){
@@ -1059,7 +1152,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     persist();
   };
   $('#pie-form').onsubmit=e=>{e.preventDefault();const value=Number($('#pie-max').value);if(!(value>0&&value<=100))return toast('최대 가동률은 0보다 크고 100 이하로 입력하세요.');S.options.pieMax=value;persist();render();};
-  $('#reset-filters').onclick=()=>{if(!S.meta)return;setRange(S.meta);fillFilters(S.meta,true);schedule();};
+  $('#reset-filters').onclick=()=>{S.options.dateMode='all';S.options.selectedDates=[];syncDateFilter();if(!S.meta)return;setRange(S.meta);fillFilters(S.meta,true);schedule();};
   $('#export-csv').onclick=()=>{exportCSV();$('.export-menu').open=false;};
   $('#export-session').onclick=()=>{exportSession();$('.export-menu').open=false;};
   $('#method-button').onclick=()=>{updateMethod();$('#method-dialog').showModal();};

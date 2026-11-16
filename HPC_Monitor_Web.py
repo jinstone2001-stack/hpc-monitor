@@ -23,7 +23,7 @@ TRANSPORT = r"""
   let worker=null,workerURL=null;
   const SERVER_TOKEN=__SERVER_TOKEN__;
   const codec={
-    defaults:{offset:540,interval:30,startedMode:'snapshot',nodeClock:true,denominator:'observed',bucket:'day',pieMax:100,rangeMode:'dates'},
+    defaults:{offset:540,interval:30,startedMode:'snapshot',nodeClock:true,denominator:'observed',bucket:'day',pieMax:100,rangeMode:'dates',dateMode:'all',selectedDates:[]},
     iso:(t,o=540)=>new Date(t+o*60000).toISOString().slice(0,19),
     time:(v,o=540)=>{
       if(typeof v==='number')return Number.isFinite(v)?v:null;
