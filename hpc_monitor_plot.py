@@ -28,11 +28,11 @@ PLOT_NAMES = dict(overview="주요 지표 모아보기", jobs="날짜별 작업 
                   quality="입력 로그 현황")
 
 
-def figure_for(data, view="overview", plot=None, dark=False):
+def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_page=0):
     from matplotlib.figure import Figure
     from matplotlib.ticker import MaxNLocator
     import numpy as np
-    from hpc_monitor_core import iso
+    from hpc_monitor_core import iso, number
     ink, muted = ("#dfeaf1", "#95afbf") if dark else ("#172a3a", "#6c7c89")
     bg, line = ("#172b39", "#304958") if dark else ("#ffffff", "#e3e9ee")
     teal, blue, amber = ("#63c4c3", "#7ba7d6", "#e1ad67") if dark else ("#087f8c", "#5586bb", "#d8a154")
@@ -41,6 +41,8 @@ def figure_for(data, view="overview", plot=None, dark=False):
     meta = data.get("meta", {}) if data else {}
     offset = data.get("settings", {}).get("offset", 540) if data else 540
     series = data.get("series", []) if data else []
+    maximum = number(pie_max if pie_max is not None else (data or {}).get("settings", {}).get("pieMax", 100))
+    maximum = maximum if maximum is not None and 0 < maximum <= 100 else 100
     users = sorted(meta.get("users", []) or [r["name"] for r in (data or {}).get("users", [])])
     user_colors = {name: hls_to_rgb(i * .61803398875 % 1, .47, .6) for i, name in enumerate(users)}
 
@@ -151,28 +153,33 @@ def figure_for(data, view="overview", plot=None, dark=False):
     def allocation_pie(ax, row, title):
         value = row["allocPct"]
         known = value is not None
-        clamped = max(0, min(100, value or 0))
-        color = hls_to_rgb((220 + 140 * clamped / 100) / 360, .47, .7)
+        clamped = max(0, min(1, (value or 0) / maximum))
+        color = hls_to_rgb((220 + 140 * max(0, min(100, value or 0)) / 100) / 360, .47, .7)
         ax.set_facecolor(bg)
-        ax.pie([clamped, 100 - clamped] if known else [0, 100],
+        ax.pie([clamped, 1 - clamped] if known else [0, 1],
                colors=[color, line], startangle=90, counterclock=False,
                wedgeprops=dict(width=.3, edgecolor=bg))
         ax.text(0, 0, f"{value:.1f}%" if known else "No data", ha="center", va="center", color=color if known else muted, fontsize=15)
         ax.set_title(title, color=ink, fontsize=10)
-        ax.text(.5, -.07, "Coverage: " + (f"{row['coverage']:.1f}%" if row["coverage"] is not None else "unknown"),
+        ax.text(.5, -.07, f"Full circle: {maximum:g}% · Coverage: " + (f"{row['coverage']:.1f}%" if row["coverage"] is not None else "unknown"),
                 transform=ax.transAxes, ha="center", color=muted, fontsize=8)
 
     def allocation_pies(table):
         rows = data.get(table, [])
         if not rows:
             return empty(fig.add_subplot())
+        total = len(rows)
+        pages = max(1, math.ceil(total / 24))
+        page = max(0, min(int(pie_page), pages - 1))
+        rows = rows[page * 24:(page + 1) * 24]
         columns = min(4, len(rows))
         count = math.ceil(len(rows) / columns)
         fig.set_size_inches(11.5, max(5.7, count * 2.5))
         for index, row in enumerate(rows, 1):
             ax = fig.add_subplot(count, columns, index)
             allocation_pie(ax, row, row_label(row))
-        fig.suptitle(("Node" if table == "nodes" else "Group") + " core allocation · blue = low, red = high", color=ink, fontsize=12)
+        suffix = f" · Page {page + 1}/{pages} ({total} total)" if pages > 1 else ""
+        fig.suptitle(("Node" if table == "nodes" else "Group") + " core allocation · blue = low, red = high" + suffix, color=ink, fontsize=12)
 
     def draw(ax, name):
         if name == "gpu_latest":

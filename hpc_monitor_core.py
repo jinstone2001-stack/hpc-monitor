@@ -12,10 +12,12 @@ import math
 import re
 import statistics
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from bisect import bisect_left, bisect_right
+from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 TYPES = ("user_cpu", "queue_started", "queue_pending", "node_cpu", "gpu_user", "gpu")
 SCHEMA = {
     "user_cpu": "timestamp user node partition cpus_alloc mem_alloc_mb n_jobs job_ids".split(),
@@ -26,6 +28,8 @@ SCHEMA = {
     "gpu": "timestamp node gpu_index uuid gpu_name gpu_util mem_total_mb mem_used_mb mem_pct temp_c power_w".split(),
 }
 NUMBERS = set("cpus_alloc mem_alloc_mb n_jobs wait_sec wait_min alloc_cpus n_nodes req_cpus priority cpu_total cpu_alloc alloc_pct cpu_load load_pct mem_total_mb mem_pct gpu_util mem_used_mb temp_c power_w".split())
+NUMERIC_FIELDS = {kind: tuple(k for k in schema if k in NUMBERS) for kind, schema in SCHEMA.items()}
+NONNEGATIVE = "cpus_alloc cpu_total cpu_alloc n_jobs alloc_cpus req_cpus n_nodes mem_alloc_mb mem_used_mb mem_total_mb wait_sec wait_min".split()
 KEYS = {
     "user_cpu": ("timestamp", "user", "node", "partition"),
     "queue_started": ("timestamp", "job_id", "start_time", "submit_time"),
@@ -43,16 +47,22 @@ DISTINCTIVE = {
     "gpu": {"gpu_util", "gpu_index", "gpu_name"},
 }
 DEFAULTS = dict(offset=540, interval=30, startedMode="snapshot",
-                nodeClock=True, denominator="observed", bucket="day")
+                nodeClock=True, denominator="observed", bucket="day", pieMax=100, rangeMode="dates")
 DAY, HOUR = 86_400_000, 3_600_000
 MISSING = re.compile(r"^(?:N/A|NA|nan|null|none|-)$", re.I)
+TIME_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?", re.I)
 
 
 def number(value):
-    if value is None or str(value).strip() == "" or MISSING.fullmatch(str(value).strip()):
+    if value is None:
+        return None
+    if isinstance(value, (float, int)) and not isinstance(value, bool):
+        return float(value) if math.isfinite(value) else None
+    text = str(value).strip()
+    if not text or MISSING.fullmatch(text):
         return None
     try:
-        result = float(str(value).rstrip("%"))
+        result = float(text.rstrip("%"))
         return result if math.isfinite(result) else None
     except (ValueError, TypeError):
         return None
@@ -62,7 +72,12 @@ def parse_time(value, offset=540):
     if isinstance(value, (float, int)) and not isinstance(value, bool):
         return value if math.isfinite(value) else None
     text = str(value or "").strip()
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?", text, re.I):
+    return _time_text(text, offset)
+
+
+@lru_cache(maxsize=32768)
+def _time_text(text, offset):
+    if not TIME_PATTERN.fullmatch(text):
         return None
     try:
         dt = datetime.fromisoformat(text.replace("z", "+00:00").replace("Z", "+00:00"))
@@ -77,15 +92,34 @@ def iso(value, offset=540):
     return datetime.fromtimestamp(value / 1000, timezone(timedelta(minutes=offset))).isoformat(timespec="seconds")[:19]
 
 
+def date_range(first, last, offset=540):
+    """Selected calendar dates, including the entire last day; no extrapolation."""
+    try:
+        if not all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", s) for s in (first, last)):
+            raise ValueError()
+        a, b = date.fromisoformat(first), date.fromisoformat(last)
+        if b < a:
+            raise ValueError()
+        end = (b + timedelta(days=1)).isoformat()
+    except (ValueError, TypeError, OverflowError):
+        raise ValueError("시작일과 종료일을 YYYY-MM-DD 형식으로 확인하세요. 종료일은 시작일 이상이어야 합니다.") from None
+    return parse_time(a.isoformat() + "T00:00:00", offset), parse_time(end + "T00:00:00", offset)
+
+
 def parse_list(value):
-    text = str(value or "").strip()
+    # Cached immutable values prevent repeated partition/job-ID tokenization.
+    return list(_list_items(str(value or "").strip()))
+
+
+@lru_cache(maxsize=8192)
+def _list_items(text):
     if not text or re.fullmatch(r"-|none|N/A|\(null\)", text, re.I):
-        return []
+        return ()
     if text.startswith("["):
         try:
             values = json.loads(text)
             if isinstance(values, list):
-                return list(dict.fromkeys(str(v).strip() for v in values if str(v).strip()))
+                return tuple(dict.fromkeys(str(v).strip() for v in values if str(v).strip()))
         except ValueError:
             pass
     values, part, depth = [], "", 0
@@ -99,7 +133,7 @@ def parse_list(value):
             part += char
     if part:
         values.append(part.strip("\"'"))
-    return list(dict.fromkeys(v for v in values if v))
+    return tuple(dict.fromkeys(v for v in values if v))
 
 
 def detect_header(header):
@@ -124,6 +158,11 @@ def options_from(value=None):
             opt[key] = raw[key]
     if isinstance(raw.get("nodeClock"), bool):
         opt["nodeClock"] = raw["nodeClock"]
+    if raw.get("rangeMode") in ("dates", "times"):
+        opt["rangeMode"] = raw["rangeMode"]
+    maximum = number(raw.get("pieMax"))
+    if maximum is not None and 0 < maximum <= 100:
+        opt["pieMax"] = maximum
     for key in ("from", "to"):
         if raw.get(key) is not None:
             if isinstance(raw[key], (int, float)):
@@ -144,6 +183,7 @@ class LogStore:
         self.files = []
         self.issues = []
         self.issue_total = self.duplicates = self.conflicts = self.revision = 0
+        self.data_revision = 0
         self.demo = False
         self.imported_settings = None
         self._cache = None
@@ -172,11 +212,11 @@ class LogStore:
         for key in ("start_time", "submit_time"):
             if row.get(key) and parse_time(row[key]) is None:
                 self.issue(name, line, key + " 형식 오류; 해당 시각은 집계에서 제외")
-        for key in NUMBERS.intersection(row):
+        for key in NUMERIC_FIELDS[kind]:
             original = raw.get(key)
             if original is not None and str(original).strip() and not MISSING.fullmatch(str(original).strip()) and row[key] is None:
                 self.issue(name, line, key + " 숫자 형식 오류")
-        for key in "cpus_alloc cpu_total cpu_alloc n_jobs alloc_cpus req_cpus n_nodes mem_alloc_mb mem_used_mb mem_total_mb wait_sec wait_min".split():
+        for key in NONNEGATIVE:
             if row.get(key) is not None and row[key] < 0:
                 self.issue(name, line, key + " 음수는 결측값으로 처리")
                 row[key] = None
@@ -194,10 +234,12 @@ class LogStore:
                 self.issue(name, line, "같은 식별자·시각의 값이 다름; 나중 행 사용")
         else:
             summary["rows"] += 1
-        self.tables[kind][key] = row
+        if old != row:
+            self.tables[kind][key] = row
+            self.data_revision += 1
+            self._cache = None
         summary["types"].add(kind)
         self.revision += 1
-        self._cache = None
 
     def load_stream(self, stream, name="input.tsv"):
         first = stream.readline()
@@ -213,8 +255,11 @@ class LogStore:
             for fields in reader:
                 if not fields or not any(v.strip() for v in fields):
                     continue
-                candidate = [re.sub(r"^#\s*", "", v.lstrip("\ufeff").strip()) for v in fields]
-                detected = detect_header(candidate)
+                # Header recognition is needed only at the first row or a repeated
+                # header. Most data rows start with a timestamp, not a column name.
+                candidate = ([re.sub(r"^#\s*", "", v.lstrip("\ufeff").strip()) for v in fields]
+                             if header is None or any("timestamp" in v for v in fields) else None)
+                detected = detect_header(candidate) if candidate else None
                 if detected:
                     header, kind = candidate, detected
                     summary["types"].add(kind)
@@ -239,8 +284,9 @@ class LogStore:
         return summary
 
     def load_text(self, text, name="input.tsv"):
-        if isinstance(text, bytes):
-            text = text.decode("utf-8-sig")
+        if isinstance(text, (bytes, bytearray, memoryview)):
+            with io.TextIOWrapper(io.BytesIO(text), encoding="utf-8-sig", newline="") as stream:
+                return self.load_stream(stream, name)
         return self.load_stream(io.StringIO(text), name)
 
     def load_path(self, path):
@@ -275,7 +321,7 @@ class LogStore:
                     demo=self.demo, tables={k: list(v.values()) for k, v in self.tables.items()})
 
     def normalized(self, offset=540):
-        cache_key = (self.revision, offset)
+        cache_key = (self.data_revision, offset)
         if self._cache and self._cache[0] == cache_key:
             return self._cache[1]
         tables, times, nodes, users, groups = {}, {}, {}, set(), set()
@@ -354,11 +400,18 @@ def bucket_start(t, mode, offset):
     local = t + offset * 60000
     if mode == "hour":
         return local // HOUR * HOUR - offset * 60000
-    dt = datetime.fromtimestamp(local / 1000, timezone.utc)
     if mode == "month":
+        dt = datetime.fromtimestamp(local / 1000, timezone.utc)
         return datetime(dt.year, dt.month, 1, tzinfo=timezone.utc).timestamp() * 1000 - offset * 60000
     day = local // DAY * DAY - offset * 60000
-    return day - dt.weekday() * DAY if mode == "week" else day
+    return day - (int(local // DAY) + 3) % 7 * DAY if mode == "week" else day
+
+
+def rows_in_window(rows, first, last):
+    """Sorted normalized rows, retaining the requested boundary snapshots."""
+    a = bisect_left(rows, first, key=lambda r: r["t"])
+    b = bisect_right(rows, last, key=lambda r: r["t"])
+    return rows[a:b]
 
 
 def next_bucket(t, mode, offset):
@@ -425,12 +478,15 @@ def analyze(store: LogStore, options=None):
     duration = (stop - start) / 1000
     choose = lambda kind, value: not opt[kind] or value in opt[kind]
     group_match = lambda groups: not opt["groups"] or bool(set(groups).intersection(opt["groups"]))
-    row_group = lambda r: group_match(parse_list(r.get("partition") or r.get("partitions")))
+    row_group = lambda r: not opt["groups"] or group_match(parse_list(r.get("partition") or r.get("partitions")))
     user_match = lambda r: choose("users", r.get("user", ""))
     selected_nodes = {name for name, node in inventory.items() if choose("nodes", name) and group_match(node["groups"])}
     node_stats, group_stats, user_stats, gpu_stats = {}, {}, {}, {}
     daily, heat, gpu_heat = {}, {}, {}
-    stat = lambda mapping, key: mapping.setdefault(key, fresh_stats())
+    def stat(mapping, key):
+        if key not in mapping:
+            mapping[key] = fresh_stats()
+        return mapping[key]
 
     def fresh_day(t):
         return dict(t=t, submitted=set(), started=set(), running=set(), jobSec=0,
@@ -444,7 +500,9 @@ def analyze(store: LogStore, options=None):
 
     def day(t):
         key = bucket_start(t, mode, offset)
-        return daily.setdefault(key, fresh_day(key))
+        if key not in daily:
+            daily[key] = fresh_day(key)
+        return daily[key]
 
     def clipped(a, b):
         return max(a, start), min(b, stop)
@@ -457,7 +515,7 @@ def analyze(store: LogStore, options=None):
     user_intervals = list(intervals(tables["user_cpu"], lambda r: (r["user"], r["node"], r["partition"]),
                                     user_clock, step, user_end))
     user_at = {}
-    for row in tables["user_cpu"]:
+    for row in rows_in_window(tables["user_cpu"], start - step, stop):
         if row["node"] in selected_nodes and user_match(row) and row_group(row):
             item = user_at.setdefault((row["t"], row["node"]), dict(cpu=0, mem=0, cpuKnown=False, memKnown=False))
             if row["cpus_alloc"] is not None:
@@ -473,7 +531,7 @@ def analyze(store: LogStore, options=None):
         if inventory[name]["hasCPU"]:
             node_stats[name] = fresh_stats()
     physical_capacity = 0
-    for a, b, row in intervals(tables["node_cpu"], lambda r: r["node"], times["node_cpu"], step,
+    for a, b, row in intervals(rows_in_window(tables["node_cpu"], start - step, stop), lambda r: r["node"], times["node_cpu"], step,
                                times["node_cpu"][-1] if times["node_cpu"] else None):
         if row["node"] not in selected_nodes:
             continue
@@ -698,12 +756,12 @@ def analyze(store: LogStore, options=None):
 
     gpu_user_clock = clock_for("gpu_user", "gpu")
     gpu_user_ranges, allowed_gpu, gpu_users = defaultdict(list), set(), defaultdict(set)
-    for row in tables["gpu_user"]:
+    for row in rows_in_window(tables["gpu_user"], start, stop):
         if start <= row["t"] <= stop and row["node"] in selected_nodes and user_match(row):
             gid = row["node"] + "/GPU" + row["gpu_index"]
             allowed_gpu.add(gid)
             gpu_users[gid].add(row["user"])
-    for a, b, row in intervals(tables["gpu_user"], lambda r: (r["node"], r["gpu_index"], r["pid"], r["user"], r["job_id"]),
+    for a, b, row in intervals(rows_in_window(tables["gpu_user"], start - step, stop), lambda r: (r["node"], r["gpu_index"], r["pid"], r["user"], r["job_id"]),
                                gpu_user_clock, step, gpu_user_clock[-1] if gpu_user_clock else None):
         if row["node"] not in selected_nodes or not user_match(row):
             continue
@@ -728,7 +786,7 @@ def analyze(store: LogStore, options=None):
         return gpu_stats[gid]
 
     latest_gpu = {}
-    for row in tables["gpu"]:
+    for row in rows_in_window(tables["gpu"], start, stop):
         gid = row["node"] + "/GPU" + row["gpu_index"]
         if start <= row["t"] <= stop and row["node"] in selected_nodes and (not scoped or gid in allowed_gpu):
             gpu_entry(row)
@@ -737,7 +795,7 @@ def analyze(store: LogStore, options=None):
                                    util=row["gpu_util"], memPct=row["mem_pct"], temp=row["temp_c"], power=row["power_w"],
                                    users=sorted(gpu_users[gid]))
 
-    for a, b, row in intervals(tables["gpu"], lambda r: (r["node"], r["gpu_index"]),
+    for a, b, row in intervals(rows_in_window(tables["gpu"], start - step, stop), lambda r: (r["node"], r["gpu_index"]),
                                times["gpu"], step, times["gpu"][-1] if times["gpu"] else None):
         gid = row["node"] + "/GPU" + row["gpu_index"]
         if row["node"] not in selected_nodes or (scoped and gid not in allowed_gpu):
@@ -763,7 +821,7 @@ def analyze(store: LogStore, options=None):
             if row["power_w"] is not None:
                 g["powerSec"] += row["power_w"] * sec
                 g["powerWeight"] += sec
-    for row in tables["gpu"]:
+    for row in rows_in_window(tables["gpu"], start, stop):
         gid = row["node"] + "/GPU" + row["gpu_index"]
         if not start <= row["t"] < stop or row["node"] not in selected_nodes or (scoped and gid not in allowed_gpu):
             continue

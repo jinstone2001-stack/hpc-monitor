@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import secrets
 import threading
 import webbrowser
 from email import policy
-from email.parser import BytesParser
+from email.parser import BytesHeaderParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -22,7 +23,7 @@ TRANSPORT = r"""
   let worker=null,workerURL=null;
   const SERVER_TOKEN=__SERVER_TOKEN__;
   const codec={
-    defaults:{offset:540,interval:30,startedMode:'snapshot',nodeClock:true,denominator:'observed',bucket:'day'},
+    defaults:{offset:540,interval:30,startedMode:'snapshot',nodeClock:true,denominator:'observed',bucket:'day',pieMax:100,rangeMode:'dates'},
     iso:(t,o=540)=>new Date(t+o*60000).toISOString().slice(0,19),
     time:(v,o=540)=>{
       if(typeof v==='number')return Number.isFinite(v)?v:null;
@@ -60,7 +61,8 @@ DIRECTORY_DIALOG = r"""
   <div class="dialog-title"><h2 id="server-files-title">서버 폴더에서 로그 불러오기</h2><button data-close="server-files" aria-label="파일 선택 닫기">×</button></div>
   <p>Python 서버가 실행 중인 컴퓨터의 폴더입니다. PC 파일은 아래 버튼으로 선택하세요.</p>
   <form id="server-path-form" class="file-path"><button type="button" id="server-up" class="button subtle" aria-label="상위 폴더로 이동">↑ 상위 폴더</button><input id="server-path" aria-label="서버 폴더 경로" placeholder="/path/to/logs 또는 ~/logs" autocomplete="off"><button class="button subtle" type="submit">이동</button></form>
-  <div id="server-file-list" aria-label="폴더와 파일 목록" aria-busy="false"></div>
+  <div class="toolbar-inline" style="margin-bottom:8px;flex-wrap:wrap"><button class="button subtle" id="server-select-all">파일 전체 선택</button><button class="button subtle" id="server-select-none">선택 해제</button><span class="help">Ctrl+A: 목록에서는 파일 전체, 주소에서는 주소 전체 선택</span></div>
+  <div id="server-file-list" aria-label="폴더와 파일 목록" aria-busy="false" tabindex="0"></div>
   <div id="server-file-error" role="alert"></div><div id="server-file-count" aria-live="polite">파일을 선택하세요.</div>
   <div class="dialog-actions"><button class="button subtle" id="local-file-button">내 PC 파일 선택</button><button class="button subtle" data-close="server-files">취소</button><button class="button primary" id="server-import" disabled>선택한 파일 불러오기</button></div>
 </dialog>
@@ -99,6 +101,19 @@ DIRECTORY_SCRIPT = r"""
   $('#server-up').onclick=()=>{if(serverDirectory)browseServer(serverDirectory.parent);};
   $('#server-file-list').onclick=event=>{const target=event.target.closest('[data-server-folder]');if(target&&serverDirectory)browseServer(serverDirectory.entries[+target.dataset.serverFolder].path);};
   $('#server-file-list').onchange=updateServerSelection;
+  function selectServerFiles(checked=true){
+    for(const input of $$('#server-file-list [data-server-file]'))input.checked=checked;
+    updateServerSelection();
+  }
+  $('#server-select-all').onclick=()=>selectServerFiles();
+  $('#server-select-none').onclick=()=>selectServerFiles(false);
+  $('#server-files').addEventListener('keydown',event=>{
+    if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='a'){
+      event.preventDefault();event.stopPropagation();
+      if(event.target===$('#server-path'))$('#server-path').select();
+      else selectServerFiles();
+    }
+  });
   $('#local-file-button').onclick=()=>{$('#server-files').close();$('#file-input').click();};
   $('#server-import').onclick=async()=>{
     if(!serverDirectory)return;
@@ -141,6 +156,7 @@ class MonitorSession:
     def __init__(self, store=None):
         self.store = store if store is not None else LogStore()
         self.last = None
+        self.last_key = None
         self.lock = threading.RLock()
 
     def command(self, message):
@@ -157,7 +173,14 @@ class MonitorSession:
                 self.store, self.last = demo_store(), None
                 return self.store.describe(message.get("settings"))
             if op == "analyze":
-                self.last = analyze(self.store, message.get("options"))
+                opt = options_from(message.get("options"))
+                accounting = {k: v for k, v in opt.items() if k not in ("pieMax", "rangeMode")}
+                key = (id(self.store), self.store.revision, json.dumps(accounting, sort_keys=True))
+                if self.last_key != key or self.last is None:
+                    self.last = analyze(self.store, opt)
+                    self.last_key = key
+                # Presentation changes retain the actual, cached statistics.
+                self.last = dict(self.last, settings=dict(self.last["settings"], pieMax=opt["pieMax"], rangeMode=opt["rangeMode"]))
                 if self.last["empty"]:
                     return self.last
                 return dict(self.last, jobs=self.last["jobs"][:50], jobsTotal=len(self.last["jobs"]))
@@ -191,31 +214,87 @@ class MonitorSession:
             path = Path(raw).expanduser().resolve(strict=True)
             if not path.is_file():
                 raise ValueError("일반 로그 파일을 선택하세요: " + str(path))
-            if path.stat().st_size > maximum - used:
+            size = path.stat().st_size
+            if size > maximum - used:
                 raise ValueError(f"선택한 파일의 합계는 {maximum / 1024 / 1024:g} MB 이하여야 합니다.")
-            with path.open("rb") as stream:
-                data = stream.read(maximum - used + 1)
-            used += len(data)
-            if used > maximum:
-                raise ValueError("선택한 파일의 크기 제한을 초과했습니다.")
-            files.append((path.name, data))
-        return self.import_files(files, settings, replace)
+            used += size
+            files.append(path)
+        # Validate all paths before replacing the session; read each file directly
+        # instead of retaining every file's bytes and decoded text in memory.
+        with self.lock:
+            return self._import(files, settings, replace, lambda path: self.store.load_path(path))
 
     def import_files(self, files, settings, replace=False):
         with self.lock:
-            if replace or self.store.demo:
-                self.store = LogStore()
-            self.store.imported_settings = None
-            for name, data in files:
-                name = Path(name).name
-                try:
-                    self.store.load_text(data, name)
-                except (ValueError, UnicodeError, TypeError) as exc:
-                    self.store.issue(name, 0, "파일 읽기 실패: " + str(exc))
-                    self.store.files.append(dict(name=name, rows=0, duplicates=0, invalid=1, types=[]))
-            restored = self.store.imported_settings if len(files) == 1 else None
-            self.last = None
-            return dict(meta=self.store.describe(restored or settings), restored=restored)
+            return self._import(files, settings, replace,
+                                lambda item: self.store.load_text(item[1], Path(item[0]).name))
+
+    def _import(self, files, settings, replace, loader):
+        if replace or self.store.demo:
+            self.store = LogStore()
+        self.store.imported_settings = None
+        for item in files:
+            name = item.name if isinstance(item, Path) else Path(item[0]).name
+            try:
+                loader(item)
+            except (ValueError, UnicodeError, TypeError, OSError) as exc:
+                self.store.issue(name, 0, "파일 읽기 실패: " + str(exc))
+                self.store.files.append(dict(name=name, rows=0, duplicates=0, invalid=1, types=[]))
+        restored = self.store.imported_settings if len(files) == 1 else None
+        self.last, self.last_key = None, None
+        return dict(meta=self.store.describe(restored or settings), restored=restored)
+
+
+def multipart_files(body, content_type):
+    """Parse only small MIME headers, leaving large log payloads as byte views.
+
+    Email's full message parser splits and reconstructs every log line. Browser
+    multipart uploads need only their CRLF-delimited boundaries and headers.
+    """
+    parser = BytesHeaderParser(policy=policy.default)
+    header = parser.parsebytes(b"Content-Type: " + content_type.encode("ascii") + b"\r\n\r\n")
+    boundary = header.get_boundary()
+    if not boundary or len(boundary) > 200 or "\r" in boundary or "\n" in boundary:
+        raise ValueError("파일 입력 경계 형식 오류")
+    marker = b"--" + boundary.encode("ascii")
+    files, options, position = [], {}, 0
+    view = memoryview(body)
+    while True:
+        if body[position:position + len(marker)] != marker:
+            raise ValueError("multipart 파일 입력 형식 오류")
+        position += len(marker)
+        if body[position:position + 2] == b"--":
+            break
+        if body[position:position + 2] != b"\r\n":
+            raise ValueError("multipart 헤더 형식 오류")
+        position += 2
+        end_header = body.find(b"\r\n\r\n", position)
+        next_marker = body.find(b"\r\n" + marker, position)
+        if end_header < 0 or end_header - position > 65536 or 0 <= next_marker < end_header:
+            raise ValueError("multipart 헤더를 읽을 수 없습니다.")
+        part = parser.parsebytes(body[position:end_header] + b"\r\n\r\n")
+        if part.defects:
+            raise ValueError("multipart 헤더 형식 오류")
+        start = end_header + 4
+        end = body.find(b"\r\n" + marker, start)
+        while end >= 0 and body[end + 2 + len(marker):end + 4 + len(marker)] not in (b"\r\n", b"--"):
+            end = body.find(b"\r\n" + marker, end + 2)
+        if end < 0:
+            raise ValueError("파일 입력 본문이 완전하지 않습니다.")
+        if part.get_content_disposition() == "form-data":
+            field = part.get_param("name", header="content-disposition")
+            if field == "files":
+                files.append((part.get_filename() or "input.tsv", view[start:end]))
+                if len(files) > 500:
+                    raise ValueError("한 번에 최대 500개 파일을 선택하세요.")
+            elif field == "options":
+                options = json.loads(body[start:end] or b"{}")
+                if not isinstance(options, dict):
+                    raise ValueError("설정에는 JSON 객체가 필요합니다.")
+        position = end + 2
+    if not files:
+        raise ValueError("로그 파일을 선택하세요.")
+    return files, options
 
 
 def make_server(host="127.0.0.1", port=8888, session=None, max_upload_mb=128):
@@ -238,10 +317,16 @@ def make_server(host="127.0.0.1", port=8888, session=None, max_upload_mb=128):
 
         def reply(self, status, payload, content_type="application/json; charset=utf-8"):
             if not isinstance(payload, bytes):
-                payload = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+                payload = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+            compressed = len(payload) >= 65536 and any(p.strip() == "gzip" for p in self.headers.get("Accept-Encoding", "").split(","))
+            if compressed:
+                payload = gzip.compress(payload, compresslevel=1)
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(payload)))
+            if compressed:
+                self.send_header("Content-Encoding", "gzip")
+            self.send_header("Vary", "Accept-Encoding")
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
@@ -296,23 +381,7 @@ def make_server(host="127.0.0.1", port=8888, session=None, max_upload_mb=128):
                     content_type = self.headers.get("Content-Type", "")
                     if not content_type.startswith("multipart/form-data"):
                         raise ValueError("multipart 파일 입력이 필요합니다.")
-                    mime = BytesParser(policy=policy.default).parsebytes(
-                        b"Content-Type: " + content_type.encode("ascii") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
-                    if not mime.is_multipart():
-                        raise ValueError("파일 입력 형식 오류")
-                    files, options = [], {}
-                    for part in mime.iter_parts():
-                        if part.get_content_disposition() != "form-data":
-                            continue
-                        field = part.get_param("name", header="content-disposition")
-                        if field == "files":
-                            files.append((part.get_filename() or "input.tsv", part.get_payload(decode=True) or b""))
-                        elif field == "options":
-                            options = json.loads(part.get_payload(decode=True) or b"{}")
-                    if not files:
-                        raise ValueError("로그 파일을 선택하세요.")
-                    if len(files) > 500:
-                        raise ValueError("한 번에 최대 500개 파일을 선택하세요.")
+                    files, options = multipart_files(body, content_type)
                     result = session.import_files(files, options.get("settings"), options.get("replace") is True)
                 else:
                     self.reply(404, dict(error="지원하지 않는 API입니다."))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import io
 import json
 import math
@@ -10,8 +11,9 @@ import queue
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from datetime import date
 
-from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, demo_store, iso, parse_time, table_csv
+from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, date_range, demo_store, iso, parse_time, table_csv
 from hpc_monitor_plot import PLOT_NAMES, VIEWS, figure_for
 from hpc_monitor_files import directory_listing
 from hpc_monitor_help import help_text
@@ -73,6 +75,8 @@ class LogFilePicker:
         self.entry = ttk.Entry(top, textvariable=self.path)
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda _event: self.navigate(self.path.get()))
+        for event in ("<Control-a>", "<Control-A>"):
+            self.entry.bind(event, self.focus_path)
         ttk.Button(top, text="이동", command=lambda: self.navigate(self.path.get())).pack(side="left", padx=(8, 0))
         body = ttk.Frame(self.dialog, padding=(10, 0))
         body.pack(fill="both", expand=True)
@@ -92,13 +96,15 @@ class LogFilePicker:
         self.tree.bind("<Double-1>", self.open_selection)
         self.tree.bind("<Return>", self.open_selection)
         self.tree.bind("<BackSpace>", self.go_up)
+        for event in ("<Control-a>", "<Control-A>"):
+            self.tree.bind(event, self.select_all_files)
         self.dialog.bind("<Alt-Up>", self.go_up)
         self.dialog.bind("<Alt-Left>", self.go_up)
         self.dialog.bind("<Control-l>", self.focus_path)
         self.dialog.bind("<Escape>", lambda _event: self.dialog.destroy())
         bottom = ttk.Frame(self.dialog, padding=10)
         bottom.pack(fill="x")
-        ttk.Label(bottom, text="Ctrl / Shift: 여러 파일 선택 · 경로 입력 후 Enter").pack(side="left")
+        ttk.Label(bottom, text="Ctrl+A: 파일 전체 / 주소 전체 선택 · Ctrl/Shift: 여러 파일 선택").pack(side="left")
         ttk.Button(bottom, text="불러오기", command=self.accept).pack(side="right")
         ttk.Button(bottom, text="취소", command=self.dialog.destroy).pack(side="right", padx=8)
         self.navigate(str(initialdir))
@@ -106,6 +112,13 @@ class LogFilePicker:
     def focus_path(self, _event=None):
         self.entry.focus_set()
         self.entry.selection_range(0, "end")
+        return "break"
+
+    def select_all_files(self, _event=None):
+        keys = [key for key, row in self.entries.items() if not row["directory"]]
+        self.tree.selection_set(keys)
+        if keys:
+            self.tree.focus(keys[0])
         return "break"
 
     def navigate(self, path):
@@ -164,6 +177,59 @@ class LogFilePicker:
         return self.result
 
 
+class CalendarPicker:
+    """Small dependency-free calendar; choosing a day updates the date field."""
+
+    def __init__(self, parent, variable):
+        import tkinter as tk
+        from tkinter import ttk
+        self.variable = variable
+        try:
+            selected = date.fromisoformat(variable.get())
+        except ValueError:
+            selected = date.today()
+        self.year, self.month, self.selected = selected.year, selected.month, selected
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("날짜 선택")
+        self.dialog.transient(parent)
+        self.dialog.resizable(False, False)
+        top = ttk.Frame(self.dialog, padding=10)
+        top.pack(fill="x")
+        ttk.Button(top, text="◀", width=4, command=lambda: self.move(-1)).pack(side="left")
+        self.title = ttk.Label(top, anchor="center", width=20)
+        self.title.pack(side="left")
+        ttk.Button(top, text="▶", width=4, command=lambda: self.move(1)).pack(side="left")
+        self.days = ttk.Frame(self.dialog, padding=(10, 0, 10, 10))
+        self.days.pack()
+        self.dialog.bind("<Escape>", lambda _e: self.dialog.destroy())
+        self.draw()
+        self.dialog.grab_set()
+
+    def move(self, delta):
+        value = self.year * 12 + self.month - 1 + delta
+        year, month = divmod(value, 12)
+        if 1 <= year <= 9999:
+            self.year, self.month = year, month + 1
+            self.draw()
+
+    def draw(self):
+        from tkinter import ttk
+        self.title.configure(text=f"{self.year}년 {self.month}월")
+        for widget in self.days.winfo_children():
+            widget.destroy()
+        for column, label in enumerate(("월", "화", "수", "목", "금", "토", "일")):
+            ttk.Label(self.days, text=label, anchor="center", width=5).grid(row=0, column=column, pady=5)
+        for row, week in enumerate(calendar.monthcalendar(self.year, self.month), 1):
+            for column, day in enumerate(week):
+                if day:
+                    text = f"[{day}]" if date(self.year, self.month, day) == self.selected else str(day)
+                    ttk.Button(self.days, text=text, width=5, command=lambda d=day: self.choose(d)).grid(row=row, column=column, padx=1, pady=2)
+
+    def choose(self, day):
+        self.variable.set(date(self.year, self.month, day).isoformat())
+        self.dialog.destroy()
+
+
 class MonitorGUI:
     def __init__(self, root, store, args):
         import tkinter as tk
@@ -180,6 +246,7 @@ class MonitorGUI:
         self.page, self.sort_key, self.sort_reverse = 0, None, False
         self.rows, self.visible_rows, self.figure, self.canvas, self.toolbar = [], [], None, None, None
         self.closed = False
+        self.pie_page, self.figure_key = 0, None
         self.guide = help_text()
         self.log_directory = str(Path.cwd())
         root.title("HPC 사용량 모니터 · Python X11 " + VERSION)
@@ -216,11 +283,24 @@ class MonitorGUI:
         filters = ttk.LabelFrame(body, text="조회 조건", padding=10)
         filters.pack(fill="x", pady=(17, 8))
         self.from_var, self.to_var = tk.StringVar(), tk.StringVar()
-        for column, (label, variable) in enumerate((("조회 시작", self.from_var), ("조회 종료 · 미포함", self.to_var))):
-            ttk.Label(filters, text=label).grid(row=0, column=column, sticky="w")
-            entry = ttk.Entry(filters, textvariable=variable, width=21)
-            entry.grid(row=1, column=column, padx=(0, 9), sticky="ew")
+        self.date_from, self.date_to = tk.StringVar(), tk.StringVar()
+        self.range_mode = tk.StringVar(value="날짜 · 종료일 포함")
+        self.range_fields, self.range_labels = [], []
+        for column, (label, variable, day_var) in enumerate((("시작일", self.from_var, self.date_from), ("종료일 · 포함", self.to_var, self.date_to))):
+            heading = ttk.Label(filters, text=label)
+            heading.grid(row=0, column=column, sticky="w")
+            self.range_labels.append(heading)
+            frame = ttk.Frame(filters)
+            frame.grid(row=1, column=column, padx=(0, 9), sticky="ew")
+            dates = ttk.Frame(frame)
+            dates.pack(fill="x")
+            entry = ttk.Entry(dates, textvariable=day_var, width=12)
+            entry.pack(side="left", fill="x", expand=True)
+            ttk.Button(dates, text="달력", width=5, command=lambda v=day_var: CalendarPicker(self.root, v)).pack(side="left", padx=(4, 0))
             entry.bind("<Return>", lambda _e: self.apply_filters())
+            precise = ttk.Entry(frame, textvariable=variable, width=21)
+            precise.bind("<Return>", lambda _e: self.apply_filters())
+            self.range_fields.append((dates, precise))
         self.filter_buttons = {}
         for column, (kind, label) in enumerate((("groups", "노드 그룹"), ("nodes", "노드"), ("users", "사용자")), 2):
             ttk.Label(filters, text=label).grid(row=0, column=column, sticky="w")
@@ -233,6 +313,10 @@ class MonitorGUI:
         self.bucket.grid(row=1, column=5, padx=(0, 9))
         ttk.Button(filters, text="조회", command=self.apply_filters).grid(row=1, column=6, padx=(0, 5))
         ttk.Button(filters, text="초기화", command=self.reset_filters).grid(row=1, column=7)
+        mode = ttk.Combobox(filters, textvariable=self.range_mode, values=["날짜 · 종료일 포함", "시각 · 종료 미포함"], state="readonly", width=22)
+        mode.grid(row=2, column=0, columnspan=2, sticky="w", pady=(9, 0))
+        mode.bind("<<ComboboxSelected>>", self.change_range_mode)
+        ttk.Label(filters, text="날짜를 고른 뒤 조회 · 종료일 전체 포함 · 기록 이후는 연장하지 않음").grid(row=2, column=2, columnspan=6, sticky="w", pady=(9, 0))
         for column in range(5):
             filters.columnconfigure(column, weight=1)
         self.caption = ttk.Label(body, text="탭 구분 파일을 선택하거나 예제로 시작하세요.")
@@ -262,6 +346,21 @@ class MonitorGUI:
         self.plot_buttons.pack(side="left", fill="x", expand=True)
         self.dark_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(chart_tools, text="다크 모드", variable=self.dark_var, command=self.toggle_theme).pack(side="right")
+        pie_tools = ttk.Frame(self.chart_frame, padding=(7, 3))
+        pie_tools.pack(fill="x")
+        ttk.Label(pie_tools, text="원그래프 최대 가동률 (%)").pack(side="left")
+        self.pie_max = tk.StringVar(value="100")
+        maximum = ttk.Entry(pie_tools, textvariable=self.pie_max, width=7)
+        maximum.pack(side="left", padx=6)
+        maximum.bind("<Return>", lambda _e: self.apply_pie_max())
+        ttk.Button(pie_tools, text="적용", command=self.apply_pie_max).pack(side="left")
+        ttk.Label(pie_tools, text="채움 기준만 변경 · 숫자는 실제 가동률").pack(side="left", padx=8)
+        self.pie_caption = ttk.Label(pie_tools, text="")
+        self.pie_caption.pack(side="right", padx=6)
+        self.pie_next = ttk.Button(pie_tools, text="다음", command=lambda: self.move_pies(1))
+        self.pie_next.pack(side="right")
+        self.pie_prev = ttk.Button(pie_tools, text="이전", command=lambda: self.move_pies(-1))
+        self.pie_prev.pack(side="right", padx=4)
         self.canvas_frame = ttk.Frame(self.chart_frame)
         self.canvas_frame.pack(fill="both", expand=True)
         self.chart_scroll = tk.Canvas(self.canvas_frame, highlightthickness=0)
@@ -344,6 +443,9 @@ class MonitorGUI:
                 ticket, done, value, error = self.events.get_nowait()
                 if ticket != self.generation:
                     continue
+                if done is None:
+                    self.status.set(value)
+                    continue
                 self.busy = False
                 self.progress.stop()
                 for control in self.controls:
@@ -362,21 +464,54 @@ class MonitorGUI:
         if meta["min"] is not None:
             self.from_var.set(iso(meta["min"], self.options["offset"]))
             self.to_var.set(iso(meta["max"], self.options["offset"]))
+            self.date_from.set(iso(meta["min"], self.options["offset"])[:10])
+            self.date_to.set(iso(meta["max"], self.options["offset"])[:10])
+
+    def change_range_mode(self, _event=None):
+        dates = self.range_mode.get().startswith("날짜")
+        if (self.options["rangeMode"] == "dates") != dates:
+            try:
+                if dates:
+                    a = parse_time(self.from_var.get(), self.options["offset"])
+                    b = parse_time(self.to_var.get(), self.options["offset"])
+                    if a is not None and b is not None:
+                        self.date_from.set(iso(a, self.options["offset"])[:10])
+                        self.date_to.set(iso(b - (1 if b > a else 0), self.options["offset"])[:10])
+                else:
+                    a, b = date_range(self.date_from.get(), self.date_to.get(), self.options["offset"])
+                    self.from_var.set(iso(a, self.options["offset"]))
+                    self.to_var.set(iso(b, self.options["offset"]))
+            except ValueError:
+                pass
+        for index, (day_fields, time_field) in enumerate(self.range_fields):
+            day_fields.pack_forget()
+            time_field.pack_forget()
+            (day_fields if dates else time_field).pack(fill="x")
+            self.range_labels[index].configure(text=("시작일" if index == 0 else "종료일 · 포함") if dates else ("조회 시작 시각" if index == 0 else "종료 시각 · 미포함"))
+        self.options["rangeMode"] = "dates" if dates else "times"
 
     def apply_filters(self):
         if self.busy:
             return
-        a = parse_time(self.from_var.get(), self.options["offset"])
-        b = parse_time(self.to_var.get(), self.options["offset"])
+        dates = self.range_mode.get().startswith("날짜")
+        try:
+            if dates:
+                a, b = date_range(self.date_from.get(), self.date_to.get(), self.options["offset"])
+            else:
+                a = parse_time(self.from_var.get(), self.options["offset"])
+                b = parse_time(self.to_var.get(), self.options["offset"])
+        except ValueError as exc:
+            self.messagebox.showinfo("조회 기간", str(exc), parent=self.root)
+            return
         meta = self.store.describe(self.options)
-        snapshot_only = bool(meta["counts"]["gpu"] and meta["min"] == meta["max"] and self.from_var.get() == self.to_var.get() == iso(meta["min"], self.options["offset"]))
+        snapshot_only = bool(meta["counts"]["gpu"] and meta["min"] == meta["max"] and a is not None and b is not None and a <= meta["min"] <= b)
         if snapshot_only:
             a = b = meta["min"]
         if a is None or b is None or b <= a and not snapshot_only:
             self.messagebox.showinfo("조회 기간", "서로 다른 시각의 기록을 두 개 이상 불러오고 시작·종료 시각을 확인하세요.", parent=self.root)
             return
         self.options.update(self.filter_selection)
-        self.options.update({"from": a, "to": b, "bucket": {"시간별": "hour", "일별": "day", "주별": "week", "월별": "month"}[self.bucket_var.get()]})
+        self.options.update({"from": a, "to": b, "rangeMode": "dates" if dates else "times", "bucket": {"시간별": "hour", "일별": "day", "주별": "week", "월별": "month"}[self.bucket_var.get()]})
         options = dict(self.options)
         self.work(lambda: analyze(self.store, options), self.accept)
 
@@ -398,17 +533,23 @@ class MonitorGUI:
         def task():
             store = LogStore() if replace else old
             store.imported_settings = None
-            for path in paths:
+            for index, path in enumerate(paths, 1):
+                self.events.put((self.generation, None, f"{index}/{len(paths)} 파일 읽는 중 · {Path(path).name}", None))
                 try:
                     store.load_path(path)
                 except (ValueError, OSError, UnicodeError) as exc:
                     store.issue(Path(path).name, 0, str(exc))
                     store.files.append(dict(name=Path(path).name, rows=0, duplicates=0, invalid=1, types=[]))
+            self.events.put((self.generation, None, "로그 시간 인덱스를 준비하고 있습니다…", None))
+            store.describe(store.imported_settings or self.options)  # Build the time index off the GUI thread.
             return store
         def done(store):
             self.store = store
             if store.imported_settings:
                 self.options.update({k: v for k, v in store.imported_settings.items() if k in DEFAULTS})
+                self.pie_max.set(str(self.options["pieMax"]))
+                self.range_mode.set("날짜 · 종료일 포함" if self.options["rangeMode"] == "dates" else "시각 · 종료 미포함")
+                self.change_range_mode()
             self.update_range()
             self.filter_selection = {k: [] for k in self.filter_selection}
             self.update_filter_labels()
@@ -473,6 +614,7 @@ class MonitorGUI:
 
     def switch_view(self, view, draw=True):
         self.view, self.plot, self.page = view, VIEWS[view][1][0], 0
+        self.pie_page = 0
         self.title.configure(text=VIEWS[view][0] + (" · 예제 데이터" if self.store.demo else ""))
         for button in self.plot_buttons.winfo_children():
             button.destroy()
@@ -488,9 +630,30 @@ class MonitorGUI:
 
     def select_plot(self, plot):
         self.plot = plot
+        self.pie_page = 0
         self.plot_var.set(plot)
         self.notebook.select(self.chart_frame)
-        self.render()
+        if self.view == "gpu":
+            self.render()
+        else:
+            self.render_figure()
+
+    def apply_pie_max(self):
+        try:
+            maximum = float(self.pie_max.get())
+            if not 0 < maximum <= 100:
+                raise ValueError()
+        except ValueError:
+            self.messagebox.showinfo("원그래프 최대 가동률", "0보다 크고 100 이하인 숫자를 입력하세요. 예: 80, 70", parent=self.root)
+            return
+        self.options["pieMax"] = maximum
+        if self.data:
+            self.data["settings"]["pieMax"] = maximum
+        self.render_figure()
+
+    def move_pies(self, delta):
+        self.pie_page += delta
+        self.render_figure()
 
     def render(self):
         meta = self.store.describe(self.options)
@@ -499,7 +662,10 @@ class MonitorGUI:
             for key, label in self.metric_labels.items():
                 label.configure(text=fmt(data["summary"][key], "minutes" if key.startswith("wait") else "pct" if key.endswith("Pct") or key == "coverage" else "num"))
             tz = "한국시간" if self.options["offset"] == 540 else "UTC"
-            self.caption.configure(text=f"{self.from_var.get()} — {self.to_var.get()} · {tz} · {sum(meta['counts'].values()):,}개 기록 · 확인 사항 {meta['issueTotal']:,}개")
+            first = iso(data["from"], self.options["offset"])
+            last = iso(data["to"] - (0 if data.get("snapshotOnly") else 1), self.options["offset"])
+            period = f"{first[:10]} — {last[:10]} (종료일 포함)" if data["settings"]["rangeMode"] == "dates" else f"{first} — {iso(data['to'], self.options['offset'])}"
+            self.caption.configure(text=f"{period} · {tz} · {sum(meta['counts'].values()):,}개 기록 · 확인 사항 {meta['issueTotal']:,}개")
         else:
             self.caption.configure(text=data.get("error", "로그를 불러오세요.") if data else "탭 구분 로그 파일을 선택하거나 예제로 시작하세요.")
             for label in self.metric_labels.values():
@@ -519,13 +685,26 @@ class MonitorGUI:
         self.render_figure()
 
     def render_figure(self):
+        table = "nodes" if self.plot == "node_pies" else "groups" if self.plot == "group_pies" else None
+        count = len((self.data or {}).get(table, [])) if table else 0
+        pages = max(1, math.ceil(count / 24))
+        self.pie_page = max(0, min(self.pie_page, pages - 1))
+        self.pie_prev.configure(state="normal" if table and self.pie_page > 0 else "disabled")
+        self.pie_next.configure(state="normal" if table and self.pie_page + 1 < pages else "disabled")
+        self.pie_caption.configure(text=f"{self.pie_page + 1}/{pages} · {count}개" if table else "")
+        key = (id(self.data), self.view, self.plot, self.dark_var.get(), self.options["pieMax"], self.pie_page)
+        if self.figure_key == key:
+            return
         if self.canvas:
             self.canvas.get_tk_widget().destroy()
         if self.toolbar:
             self.toolbar.destroy()
         if self.chart_window is not None:
             self.chart_scroll.delete(self.chart_window)
-        self.figure = figure_for(self.data, self.view, self.plot, self.dark_var.get())
+        if self.figure:
+            self.figure.canvas.toolbar = None
+            self.figure.clear()
+        self.figure = figure_for(self.data, self.view, self.plot, self.dark_var.get(), pie_max=self.options["pieMax"], pie_page=self.pie_page)
         self.chart_scroll.configure(background="#172b39" if self.dark_var.get() else "#ffffff")
         self.canvas = self.Canvas(self.figure, master=self.chart_scroll)
         self.toolbar = self.Toolbar(self.canvas, self.canvas_frame, pack_toolbar=False)
@@ -537,6 +716,7 @@ class MonitorGUI:
         self.chart_scroll.yview_moveto(0)
         self.size_chart()
         self.canvas.draw_idle()
+        self.figure_key = key
 
     def size_chart(self, _event=None):
         if not self.canvas or self.chart_window is None:
@@ -544,7 +724,8 @@ class MonitorGUI:
         width, height = max(100, self.chart_scroll.winfo_width()), max(100, self.chart_scroll.winfo_height())
         if self.plot in ("node_pies", "group_pies") and self.data and not self.data.get("empty"):
             table = "nodes" if self.plot == "node_pies" else "groups"
-            height = max(height, math.ceil(len(self.data.get(table, [])) / 4) * 250)
+            count = min(24, max(0, len(self.data.get(table, [])) - self.pie_page * 24))
+            height = max(height, math.ceil(count / 4) * 250)
         self.chart_scroll.itemconfigure(self.chart_window, width=width, height=height)
         self.chart_scroll.configure(scrollregion=(0, 0, width, height))
 
