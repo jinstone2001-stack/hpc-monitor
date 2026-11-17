@@ -10,7 +10,7 @@ VIEWS = {
     "groups": ("노드 그룹별", ["group_pies", "group_core", "group_rate", "group_wait"]),
     "users": ("사용자별", ["user_core", "user_time", "user_gpu"]),
     "queue": ("작업·대기열", ["pending", "waiting", "node_wait", "group_wait", "reasons", "timeline"]),
-    "gpu": ("GPU", ["gpu_latest", "gpu_heat", "gpu_rate", "user_gpu", "gpu_power", "gpu_temp"]),
+    "gpu": ("GPU", ["gpu_latest", "gpu_heat", "gpu_rate", "user_gpu", "gpu_user_memory", "gpu_processes", "gpu_memory", "gpu_memory_used", "gpu_power_latest", "gpu_temp_latest", "gpu_power", "gpu_temp"]),
     "data": ("로그·검증", ["quality"]),
 }
 PLOT_NAMES = dict(overview="주요 지표 모아보기", jobs="날짜별 작업 수", rates="할당·점유 추이",
@@ -24,19 +24,25 @@ PLOT_NAMES = dict(overview="주요 지표 모아보기", jobs="날짜별 작업 
                   pending="대기 작업 수 추이", waiting="시작 전 대기시간", reasons="대기 사유",
                   timeline="작업 실행 구간", gpu_heat="GPU별 사용률 지도",
                   gpu_latest="GPU 마지막 관측 사용률",
+                  gpu_user_memory="사용자별 마지막 GPU 메모리", gpu_memory="GPU 마지막 메모리 점유율",
+                  gpu_processes="사용자별 마지막 GPU 프로세스", gpu_power_latest="GPU 마지막 전력", gpu_temp_latest="GPU 마지막 온도",
+                  gpu_memory_used="GPU 마지막 사용 메모리 MB",
                   gpu_rate="GPU 사용률 추이", gpu_power="GPU 평균 전력", gpu_temp="GPU 최대 온도",
                   quality="입력 로그 현황")
 
 
-def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_page=0):
+def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_page=0, settings=None):
     from matplotlib.figure import Figure
     from matplotlib.ticker import MaxNLocator
     import numpy as np
-    from hpc_monitor_core import iso, number
+    from hpc_monitor_core import appearance_options, iso, number
+    config = appearance_options(settings if settings is not None else (data or {}).get("settings"))
+    style, aliases = config["chartStyle"], config["userNames"]
     ink, muted = ("#dfeaf1", "#95afbf") if dark else ("#172a3a", "#6c7c89")
     bg, line = ("#172b39", "#304958") if dark else ("#ffffff", "#e3e9ee")
     teal, blue, amber = ("#63c4c3", "#7ba7d6", "#e1ad67") if dark else ("#087f8c", "#5586bb", "#d8a154")
-    fig = Figure(figsize=(11.5, 5.7), dpi=100, facecolor=bg, layout="constrained")
+    teal, blue, amber = (style[k] for k in ("chartColor", "secondaryColor", "warningColor"))
+    fig = Figure(figsize=(style["chartWidth"] / 100, style["chartHeight"] / 100), dpi=100, facecolor=bg, layout="constrained")
     plot = plot or VIEWS[view][1][0]
     meta = data.get("meta", {}) if data else {}
     offset = data.get("settings", {}).get("offset", 540) if data else 540
@@ -44,7 +50,7 @@ def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_p
     maximum = number(pie_max if pie_max is not None else (data or {}).get("settings", {}).get("pieMax", 100))
     maximum = maximum if maximum is not None and 0 < maximum <= 100 else 100
     users = sorted(meta.get("users", []) or [r["name"] for r in (data or {}).get("users", [])])
-    user_colors = {name: hls_to_rgb(i * .61803398875 % 1, .47, .6) for i, name in enumerate(users)}
+    user_colors = {name: config["userColors"].get(name, hls_to_rgb(i * .61803398875 % 1, .47, .6)) for i, name in enumerate(users)}
 
     def row_label(row, label="name"):
         purpose = row.get("purpose", "").replace("양자계산", "Quantum").replace("고체·MD", "Solid / MD").replace("미지정", "Unassigned")
@@ -79,8 +85,9 @@ def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_p
         if not values:
             return empty(ax)
         values.reverse()
-        rects = ax.barh([row_label(r, label) for r in values], [r[key] for r in values],
+        rects = ax.barh(range(len(values)), [r[key] for r in values],
                         color=[user_colors[r[label]] for r in values] if by_user else teal, height=.6)
+        ax.set_yticks(range(len(values)), [aliases.get(r[label], r[label]) if by_user else row_label(r, label) for r in values])
         ax.grid(axis="x", color=line)
         ax.grid(axis="y", visible=False)
         ax.set_ylabel("")
@@ -88,6 +95,12 @@ def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_p
         for rect, row in zip(rects, values):
             rect.hpc_label = str(row[label])
             rect.set_picker(True)
+            if by_user:
+                rect.hpc_user = str(row[label])
+        if by_user:
+            for text, row in zip(ax.get_yticklabels(), values):
+                text.hpc_user = str(row[label])
+                text.set_picker(True)
         ax.margins(x=.12)
 
     def jobs(ax):
@@ -124,9 +137,8 @@ def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_p
         for r in records:
             if r["node"] in ri and r["t"] in ci and r["value"] is not None:
                 matrix[ri[r["node"]], ci[r["t"]]] = r["value"]
-        from matplotlib import colormaps
-        cmap = colormaps["YlGnBu"].copy()
-        cmap.set_bad("#52606b" if dark else "#e3e9ee")
+        from matplotlib.colors import LinearSegmentedColormap
+        cmap = LinearSegmentedColormap.from_list("hpc", [style["pieLowColor"], style["pieHighColor"]]).with_extremes(bad="#52606b" if dark else "#e3e9ee")
         image = ax.imshow(np.ma.masked_invalid(matrix), aspect="auto", cmap=cmap, vmin=0, vmax=100, interpolation="nearest")
         label = "id" if gpu else "name"
         lookup = {r[label]: r for r in data.get("gpu" if gpu else "nodes", [])}
@@ -154,38 +166,65 @@ def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_p
         value = row["allocPct"]
         known = value is not None
         clamped = max(0, min(1, (value or 0) / maximum))
-        color = hls_to_rgb((220 + 140 * max(0, min(100, value or 0)) / 100) / 360, .47, .7)
+        from matplotlib.colors import to_rgb
+        low, high = to_rgb(style["pieLowColor"]), to_rgb(style["pieHighColor"])
+        fraction = max(0, min(1, (value or 0) / 100))
+        color = tuple(a + (b - a) * fraction for a, b in zip(low, high))
         ax.set_facecolor(bg)
         ax.pie([clamped, 1 - clamped] if known else [0, 1],
-               colors=[color, line], startangle=90, counterclock=False,
-               wedgeprops=dict(width=.3, edgecolor=bg))
-        ax.text(0, 0, f"{value:.1f}%" if known else "No data", ha="center", va="center", color=color if known else muted, fontsize=15)
+               colors=[color, style["pieEmptyColor"]], startangle=90, counterclock=False,
+               wedgeprops=dict(width=1 - style["pieHole"] / 100, edgecolor=bg))
+        text = ax.text(0, 0, f"{value:.1f}%" if known else "No data", ha="center", va="center", color=color if known else muted)
+        from matplotlib.patheffects import withStroke
+        text.set_path_effects([withStroke(linewidth=3, foreground=bg)])
+        text.hpc_value = True
         ax.set_title(title, color=ink, fontsize=10)
-        ax.text(.5, -.07, f"Full circle: {maximum:g}% · Coverage: " + (f"{row['coverage']:.1f}%" if row["coverage"] is not None else "unknown"),
+        ax.text(.5, -.07, "Coverage: " + (f"{row['coverage']:.1f}%" if row["coverage"] is not None else "unknown") + f"\nFull circle: {maximum:g}%",
                 transform=ax.transAxes, ha="center", color=muted, fontsize=8)
 
     def allocation_pies(table):
-        rows = data.get(table, [])
+        rows = [dict(data["summary"], name="Overall core allocation", purpose="")] if table == "overall" else data.get(table, [])
         if not rows:
             return empty(fig.add_subplot())
         total = len(rows)
-        pages = max(1, math.ceil(total / 24))
+        per_page = style["piesPerPage"]
+        pages = max(1, math.ceil(total / per_page))
         page = max(0, min(int(pie_page), pages - 1))
-        rows = rows[page * 24:(page + 1) * 24]
-        columns = min(4, len(rows))
+        rows = rows[page * per_page:(page + 1) * per_page]
+        columns = min(style["pieColumns"], len(rows))
         count = math.ceil(len(rows) / columns)
-        fig.set_size_inches(11.5, max(5.7, count * 2.5))
+        cell = max(style["pieSize"] + 2 * style["pieGap"], style["titleSize"] * 10)
+        row_height = style["pieSize"] + 2 * style["pieGap"] + style["titleSize"] + 3 * style["fontSize"]
+        top = 2 * style["titleSize"] + 12
+        width, height = max(style["chartWidth"], columns * cell), max(style["chartHeight"], count * row_height + top + 20)
+        fig.set_size_inches(width / 100, height / 100)
+        fig.set_layout_engine(None)
         for index, row in enumerate(rows, 1):
             ax = fig.add_subplot(count, columns, index)
             allocation_pie(ax, row, row_label(row))
+            x = ((index - 1) % columns + .5) * width / columns
+            y = top + ((index - 1) // columns) * row_height + style["pieGap"] + style["titleSize"] + 2 * style["fontSize"] + style["pieSize"] / 2
+            box = style["pieSize"] * 1.25
+            ax.set_position(((x - box / 2) / width, (height - y - box / 2) / height, box / width, box / height))
         suffix = f" · Page {page + 1}/{pages} ({total} total)" if pages > 1 else ""
-        fig.suptitle(("Node" if table == "nodes" else "Group") + " core allocation · blue = low, red = high" + suffix, color=ink, fontsize=12)
+        fig.suptitle(("Node" if table == "nodes" else "Group" if table == "groups" else "Overall") + " core allocation" + suffix, color=ink, fontsize=style["titleSize"])
 
     def draw(ax, name):
         if name == "gpu_latest":
             return bars(ax, data.get("latestGpu", []), "util", "Last observed GPU utilization (snapshot)", "%", "id")
+        if name == "gpu_memory":
+            return bars(ax, data.get("latestGpu", []), "memPct", "Last observed GPU memory (snapshot)", "%", "id")
+        if name == "gpu_memory_used":
+            return bars(ax, data.get("latestGpu", []), "memUsedMb", "Last observed GPU memory (snapshot)", "MB", "id")
+        if name == "gpu_user_memory":
+            return bars(ax, data.get("latestGpuUsers", []), "memUsedMb", "Last observed process memory by user (snapshot)", "MB", by_user=True)
+        if name == "gpu_processes":
+            return bars(ax, data.get("latestGpuUsers", []), "processes", "Last observed GPU processes by user (snapshot)", "processes", by_user=True)
+        if name in ("gpu_power_latest", "gpu_temp_latest"):
+            key, unit = ("power", "W") if name == "gpu_power_latest" else ("temp", "deg C")
+            return bars(ax, data.get("latestGpu", []), key, "Last observed GPU " + key + " (snapshot)", unit, "id")
         if name == "usage_pie":
-            return allocation_pie(ax, data["summary"], "Overall core allocation · blue = low, red = high")
+            return allocation_pie(ax, data["summary"], "Overall core allocation")
         if name == "jobs":
             return jobs(ax)
         if name == "rates":
@@ -231,7 +270,7 @@ def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_p
             for index, row in enumerate(rows):
                 ax.broken_barh([((a - left) / 3600000, (b - a) / 3600000) for a, b in row["ranges"]],
                                (index - .32, .64), facecolors=teal)
-            ax.set_yticks(range(len(rows)), [r["id"] + " / " + r["user"] for r in rows])
+            ax.set_yticks(range(len(rows)), [r["id"] + " / " + aliases.get(r["user"], r["user"]) for r in rows])
             ax.invert_yaxis()
             ax.set_xlim(0, (data["to"] - left) / 3600000)
             ax.set_xlabel("Hours since " + iso(left, offset).replace("T", " "), fontsize=8)
@@ -249,11 +288,30 @@ def figure_for(data, view="overview", plot=None, dark=False, pie_max=None, pie_p
         ax = fig.add_subplot()
         setup(ax, "HPC Monitor")
         empty(ax, data.get("error", "Load log files or use the built-in demo") if data else "Load log files or use the built-in demo")
-    elif plot in ("node_pies", "group_pies"):
-        allocation_pies("nodes" if plot == "node_pies" else "groups")
+    elif plot in ("node_pies", "group_pies", "usage_pie"):
+        allocation_pies("nodes" if plot == "node_pies" else "groups" if plot == "group_pies" else "overall")
     elif plot == "overview":
         for index, name in enumerate(("jobs", "rates", "user_core", "usage_pie"), 1):
             draw(fig.add_subplot(2, 2, index), name)
     else:
         draw(fig.add_subplot(), plot)
+    for ax in fig.axes:
+        ax.title.set_fontsize(style["titleSize"])
+        ax.set_title(ax.get_title(loc="left"), loc="left", fontsize=style["titleSize"])
+        for text in [*ax.get_xticklabels(), *ax.get_yticklabels(), ax.xaxis.label, ax.yaxis.label]:
+            text.set_fontsize(style["fontSize"])
+        for text in ax.texts:
+            text.set_fontsize(style["valueSize"] if getattr(text, "hpc_value", False) else style["fontSize"])
+        if ax.get_legend():
+            for text in ax.get_legend().get_texts():
+                text.set_fontsize(style["fontSize"])
+    from matplotlib import font_manager
+    from matplotlib.text import Text
+    available_fonts = {font.name for font in font_manager.fontManager.ttflist}
+    family = next((name for name in ("Malgun Gothic", "NanumGothic", "Noto Sans CJK KR", "Apple SD Gothic Neo") if name in available_fonts), None)
+    if family:
+        for text in fig.findobj(match=Text):
+            text.set_fontfamily([family, "DejaVu Sans"])
+    width, height = fig.get_size_inches() * 100
+    fig.set_dpi(100 * min(1, math.sqrt(32_000_000 / (width * height)), 16384 / max(width, height)))
     return fig

@@ -15,6 +15,7 @@
 @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
 .graph-switch{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}.graph-switch .primary{background:var(--accent);color:var(--panel)}.grid.single-chart{grid-template-columns:1fr}.help-toc{display:flex;flex-wrap:wrap;gap:8px 16px;margin:18px 0}.help-toc a{color:var(--accent)}.help-section{margin:22px 0}.help-section h3{font-size:14px;color:var(--ink)}
 .date-selection-row{flex:1 0 100%;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}.date-selection-row label{margin:0;font-size:12px}.date-selection-row select{font-size:12px}.date-selection-row .help{flex:1 1 230px}.calendar-mode{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}.calendar-mode label{display:flex;align-items:center;gap:6px;font-size:12px}.calendar-mode input{min-height:auto}.calendar-nav{display:flex;gap:8px;justify-content:center;align-items:center;margin:16px 0 10px}.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.calendar-grid .weekday{text-align:center;font-size:12px;color:var(--muted);padding:5px}.calendar-day{border:1px solid var(--line);border-radius:7px;min-height:46px;background:var(--panel-soft);font-size:14px}.calendar-day.weekend{color:var(--warn)}.calendar-day[aria-pressed=true]{background:var(--accent-soft);color:var(--accent);border:2px solid var(--accent);font-weight:700}.calendar-grid[data-mode=exclude] .calendar-day[aria-pressed=true]{background:var(--warn-bg);color:var(--error);border-color:var(--error)}.calendar-day small{display:block;font-size:9px}.calendar-selection{display:flex;gap:5px;flex-wrap:wrap;max-height:108px;overflow:auto;margin-top:10px}.calendar-selection button{border:1px solid var(--line);border-radius:5px;padding:4px 7px;font-size:11px}.calendar-selection button:hover{background:var(--panel-soft)}#date-dialog .dialog-actions{position:sticky;bottom:-24px;background:var(--panel);padding:14px 0;margin-top:12px}#date-draft-count{font-size:12px;margin-top:14px}
+.appearance-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;margin:16px 0}.appearance-grid label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px}.appearance-grid input{width:90px}textarea.mapping{width:100%;min-height:120px;font:13px/1.6 Consolas,monospace;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:10px}#appearance-dialog{width:min(760px,94vw)}.chart{overflow-x:auto}.chart [data-rename-user]{cursor:pointer;text-decoration:underline;text-decoration-style:dotted}.appearance-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}@media(max-width:600px){.appearance-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -30,7 +31,7 @@
     <button data-tab="gpu"><span>▧</span>GPU</button>
     <button data-tab="data"><span>⇄</span>로그·검증</button>
   </nav>
-  <div class="side-bottom"><span class="local-dot"></span> 브라우저 내 로컬 분석<small>외부 전송 · 계정 연결 없음</small><div>v1.5 <button id="theme-button" class="theme-button" aria-label="화면 테마 전환">다크 모드</button></div></div>
+  <div class="side-bottom"><span class="local-dot"></span> 브라우저 내 로컬 분석<small>외부 전송 · 계정 연결 없음</small><div>v1.6 <button id="theme-button" class="theme-button" aria-label="화면 테마 전환">다크 모드</button></div></div>
 </aside>
 <main>
   <header class="topbar"><div class="breadcrumb">HPC 사용량 조회 <span>/</span> <span id="breadcrumb-current">전체 현황</span></div><div class="top-actions"><button id="settings-button" class="button subtle">설정</button><details class="export-menu"><summary class="button subtle">내보내기 ↓</summary><div><button id="export-csv">현재 집계 CSV</button><button id="export-session">통합 로그 JSON</button></div></details><button id="import-button" class="button primary">＋ 로그 불러오기</button></div></header>
@@ -82,6 +83,18 @@
   <div class="dialog-actions"><button type="button" class="button subtle" data-close="settings-dialog">취소</button><button type="submit" class="button primary">설정 적용</button></div>
 </form></dialog>
 <dialog id="method-dialog"><div class="dialog-title"><h2>도움말 · 기능과 계산 근거</h2><button data-close="method-dialog" aria-label="집계 기준 닫기">×</button></div><div id="method-content"></div><div class="dialog-actions"><button class="button primary" data-close="method-dialog">확인</button></div></dialog>
+<dialog id="appearance-dialog" aria-labelledby="appearance-title"><form id="appearance-form">
+  <div class="dialog-title"><h2 id="appearance-title">이름·그래프 설정</h2><button type="button" data-close="appearance-dialog" aria-label="이름·그래프 설정 닫기">×</button></div>
+  <label for="user-names">USER ID → 표시 이름</label><p class="help">한 줄에 ID=이름. 이름이 같아도 ID별 통계는 유지합니다. 그래프의 사용자 이름을 눌러 바로 수정할 수도 있습니다.</p>
+  <textarea class="mapping" id="user-names" spellcheck="false" placeholder="alice=김연구&#10;user02=이연구"></textarea>
+  <label for="user-colors">사용자별 색상</label><p class="help">한 줄에 ID=#RRGGBB. 비어 있는 ID는 기존 자동 색상을 사용합니다.</p><textarea class="mapping" id="user-colors" spellcheck="false" placeholder="alice=#2475cc"></textarea>
+  <div id="appearance-fields" class="appearance-grid"></div>
+  <p class="help">크기는 논리 픽셀입니다. 원 배치에 필요한 공간이 설정한 캔버스보다 크면 자동 확장합니다. PNG는 현재 페이지를 저장하며 총 3,200만 픽셀 이내에서 지정 배율을 적용합니다.</p>
+  <div class="dialog-actions"><button type="button" id="reset-appearance" class="button subtle">그래프 기본값</button><button type="button" data-close="appearance-dialog" class="button subtle">취소</button><button class="button primary">적용·저장</button></div>
+</form></dialog>
+<dialog id="rename-dialog" aria-labelledby="rename-title"><form id="rename-form"><div class="dialog-title"><h2 id="rename-title">사용자 표시 이름·색상</h2><button type="button" data-close="rename-dialog" aria-label="이름 편집 닫기">×</button></div>
+  <label class="setting-label">USER ID<input id="rename-id" readonly></label><label class="setting-label">표시 이름<input id="rename-name" maxlength="200" placeholder="비우면 ID 표시"></label><label class="check"><input type="checkbox" id="rename-custom-color"> 사용자 색상 지정<input type="color" id="rename-color" aria-label="사용자 색상"></label>
+  <div class="dialog-actions"><button type="button" data-close="rename-dialog" class="button subtle">취소</button><button class="button primary">이름·색상 적용</button></div></form></dialog>
 <script id="hpc-help" type="application/json">
 [
   {
@@ -97,7 +110,8 @@
     "paragraphs": [
       "전체 현황·노드별·노드 그룹별·사용자별·작업·대기열·GPU·로그·검증으로 자료를 나눠 봅니다. 그래프 이름 버튼을 한 번 누르면 바로 전환됩니다. 웹의 전체 차트 버튼은 해당 항목의 모든 차트를 함께 표시합니다. 상세 표는 같은 조회 조건을 유지합니다.",
       "전체 현황은 작업 수, 할당·점유 추이, 사용자별 코어 시간과 전체 사용률 원그래프를 제공합니다. 노드 히트맵은 노드별 항목에서 확인합니다. 웹의 순위 막대·원그래프·히트맵 이름을 클릭하면 사용자·노드·그룹 필터를 적용합니다. Enter/Space로도 선택할 수 있습니다.",
-      "원그래프는 코어 할당률을 표시합니다. 원그래프 최대 가동률 (%)에 80, 70 등을 입력한 뒤 적용하면 해당 값에서 원이 완전히 채워집니다. 예: 실제 할당률 80%, 최대값 80% → 채움 100%, 레이블 80%. 레이블·상세 표·CSV·통계와 색상의 실제 비율은 유지합니다. 기준을 넘으면 채움만 원 전체로 제한하고 숫자는 그대로 표시합니다. 입력 범위는 0보다 크고 100 이하이며 기본값은 100입니다. 기록 없음은 미할당 0%와 구분합니다."
+      "원그래프는 코어 할당률을 표시합니다. 원그래프 최대 가동률 (%)에 80, 70 등을 입력한 뒤 적용하면 해당 값에서 원이 완전히 채워집니다. 예: 실제 할당률 80%, 최대값 80% → 채움 100%, 레이블 80%. 레이블·상세 표·CSV·통계와 색상의 실제 비율은 유지합니다. 기준을 넘으면 채움만 원 전체로 제한하고 숫자는 그대로 표시합니다. 입력 범위는 0보다 크고 100 이하이며 기본값은 100입니다. 기록 없음은 미할당 0%와 구분합니다.",
+      "1.6의 이름·그래프 버튼은 데이터가 없어도 열 수 있습니다. 캔버스 너비·높이, 원그래프의 한 줄 개수·페이지당 개수·지름·여백·구멍 비율, 일반·제목·수치 글씨, 사용자·그래프·사용률 지도 색상과 PNG 배율을 설정합니다. 원 배치 공간이 부족하면 캔버스를 확장합니다. 그래프 기본값은 이름 목록을 유지합니다."
     ]
   },
   {
@@ -149,7 +163,8 @@
     "title": "8. 사용자별 사용량·색상",
     "paragraphs": [
       "사용자 코어 시간은 user_cpu.cpus_alloc의 시간 적분입니다. 누적 작업 시간은 작업별 시간을 더하고 활동시간 비율은 실행 구간 합집합 ÷ 조회기간입니다. 여러 사용자가 동시에 실행하면 활동시간 비율의 합이 100%를 넘을 수 있습니다.",
-      "사용자 색은 같은 데이터의 전체 사용자 목록 기준이므로 필터·순위가 바뀌어도 유지합니다. 파일 추가로 사용자 목록이 바뀌면 색이 바뀔 수 있습니다. GPU·h는 같은 사용자·GPU의 프로세스 관측 구간 합집합이고 GPU 메모리 MB·h는 프로세스 mem_used_mb의 시간 적분입니다. 공유 장치에서는 사용자 GPU·h 합계가 장치 시간보다 클 수 있습니다."
+      "사용자 색은 같은 데이터의 전체 사용자 목록 기준이므로 필터·순위가 바뀌어도 유지합니다. 파일 추가로 사용자 목록이 바뀌면 색이 바뀔 수 있습니다. GPU·h는 같은 사용자·GPU의 프로세스 관측 구간 합집합이고 GPU 메모리 MB·h는 프로세스 mem_used_mb의 시간 적분입니다. 공유 장치에서는 사용자 GPU·h 합계가 장치 시간보다 클 수 있습니다.",
+      "사용자 그래프의 이름을 클릭하면 표시 이름을 편집합니다. 웹의 막대 클릭은 기존 필터 기능이고 X11에서는 막대도 이름 편집에 사용합니다. 이름·그래프에서 한 줄에 alice=김연구처럼 ID–이름 목록, alice=#2469cc처럼 사용자별 색상을 입력합니다. 표시 이름이 같아도 ID가 다른 통계는 합치지 않습니다. 필터와 원본 ID는 유지하고 CSV에 표시 이름을 별도 열로 제공합니다."
     ]
   },
   {
@@ -166,7 +181,9 @@
       "GPU는 node + gpu_index로 구분합니다. 마지막 관측 사용률은 선택 기간에 각 장치에서 마지막으로 읽은 gpu_util과 그 관측 시각입니다. 한 시점뿐이어도 스냅샷은 표시하며 이를 실시간 현재 값으로 간주하지 마세요.",
       "평균 GPU 사용률 = Σ(gpu_util × 관측 초) ÷ Σ(유효 관측 초)입니다. 평균 메모리 비율·전력도 시간 가중 방식이고 에너지는 Σ(power_w × 초) ÷ 3600 Wh입니다. 최대 온도는 기간 내 temp_c 최댓값입니다. 한 시점뿐이면 경과 시간이 없어 평균·점유시간·에너지를 확정하지 않고 — 또는 기록 없음으로 표시합니다.",
       "gpu는 장치 값, gpu_user는 사용자 프로세스 연결 정보입니다. 사용자 필터에서는 선택 사용자가 관측된 장치만 표시하며 단일 관측도 연결 근거로 사용합니다. 사용률·온도·전력은 해당 장치 전체 값이며 사용자별 계산 사용률을 메모리 비중으로 나누지 않습니다.",
-      "GPU 화면이 비면 로그·검증의 gpu·gpu_user 행 수, 조회 기간, 그룹·노드·사용자 필터를 확인하고 초기화로 조건을 해제하세요. gpu_user만으로 장치 사용률·온도·전력을 복원할 수 없고 gpu만으로 사용자 프로세스 점유를 복원할 수 없습니다."
+      "GPU 화면이 비면 로그·검증의 gpu·gpu_user 행 수, 조회 기간, 그룹·노드·사용자 필터를 확인하고 초기화로 조건을 해제하세요. gpu_user만으로 장치 사용률·온도·전력을 복원할 수 없고 gpu만으로 사용자 프로세스 점유를 복원할 수 없습니다.",
+      "1.6은 gpu_name이 없는 GPU 로그와 gpu_util 없이 메모리·온도·전력만 있는 로그도 인식합니다. timestamp·node·gpu_index와 해당 측정값 열이 필요합니다. mem_pct가 없으면 알려진 mem_used_mb와 양의 mem_total_mb로 계산합니다. 장치별 기록 시각으로 적분하고 기록 주기 상한·마지막 기록 이후 연장 금지를 유지합니다.",
+      "GPU 전용 로그는 GPU 화면으로 이동해 입력된 지표를 선택합니다. gpu_user만 있는 단일 기록도 마지막 프로세스 관측의 사용자별 메모리·프로세스 수를 표시합니다. 이 값은 각 GPU의 마지막 프로세스 관측이며 현재 상태·평균이 아닙니다. 단일 시점에는 GPU 점유시간을 만들지 않습니다. 장치 사용률은 gpu 로그가 필요합니다."
     ]
   },
   {
@@ -174,7 +191,7 @@
     "paragraphs": [
       "노드 히트맵은 기간별 코어 할당률, GPU 히트맵은 기간별 gpu_util 시간 가중평균입니다. 기록 없음과 0%를 구분하고 웹의 주황 표시는 부분 관측입니다. X11 히트맵은 최대 80행이므로 많은 노드는 필터로 나눠 보세요.",
       "순위는 웹 상위 12개, X11 상위 15개입니다. 대기 비교는 최대 대기로 정렬하고 평균과 최대를 함께 표시합니다. 전체 자료는 표·CSV에 있습니다. 타임라인은 관측 실행 구간만 표시하며 공백을 연결하지 않습니다. 웹은 최근 최대 35개, X11은 최대 25개 작업입니다.",
-      "표의 열 제목으로 정렬하고 이전·다음으로 페이지를 옮깁니다. 웹 작업 이력과 X11 상세 표는 검색할 수 있습니다. X11 행을 더블클릭하면 전체 필드를 봅니다. Matplotlib 도구 모음은 확대·이동·보기 복원 기능이며 많은 노드·그룹 원그래프는 세로 스크롤합니다. 노드·그룹 원그래프는 24개씩 이전·다음으로 이동하며 전체 자료는 표·CSV에 유지됩니다. PNG는 현재 그래프 페이지를 저장합니다. 웹은 선택한 차트만 만들고 전체 차트 버튼으로 함께 볼 수 있습니다."
+      "표의 열 제목으로 정렬하고 이전·다음으로 페이지를 옮깁니다. 웹 작업 이력과 X11 상세 표는 검색할 수 있습니다. X11 행을 더블클릭하면 전체 필드를 봅니다. Matplotlib 도구 모음은 확대·이동·보기 복원 기능이며 많은 노드·그룹 원그래프는 세로 스크롤합니다. 노드·그룹 원그래프는 기본 24개씩 이전·다음으로 이동하며 이름·그래프에서 페이지당 개수를 바꿀 수 있습니다. 전체 자료는 표·CSV에 유지됩니다. PNG는 현재 그래프 페이지를 저장합니다. 웹은 선택한 차트만 만들고 전체 차트 버튼으로 함께 볼 수 있습니다."
     ]
   },
   {
@@ -182,7 +199,8 @@
     "paragraphs": [
       "CSV는 현재 항목의 표와 조회 조건을 내보내며 대기 열은 분 단위입니다. GPU 마지막 관측 차트를 선택하면 스냅샷 표를, 다른 GPU 차트에서는 기간 집계표를 저장합니다. 통합 JSON의 원본 대기는 초 단위를 유지합니다. CSV는 UTF-8 BOM을 사용하고 수식으로 해석될 수 있는 텍스트 앞에 작은따옴표를 붙입니다. PNG는 현재 그래프 이미지이며 원본 로그를 대신하지 않습니다.",
       "통합 JSON은 여섯 종류의 원본 기록·집계 설정·예제 표시를 보존합니다. 1.0·1.1 JSON도 다시 읽을 수 있습니다. 파일 추가는 중복을 제거하며 이어 붙이고 교체 모드는 현재 데이터 대신 새 입력을 사용합니다. 예제에서 실제 파일을 읽으면 예제를 교체합니다. 웹의 데이터 비우기는 메모리 세션을 지우므로 필요한 자료는 먼저 JSON으로 저장하세요.",
-      "로그는 자동 저장하지 않습니다. HTML은 브라우저 내부, Python 웹은 실행 서버 메모리에서 계산합니다. X11·웹은 동일 Python 엔진이고 HTML은 같은 기준의 JavaScript 엔진입니다. 근거 구현은 hpc_monitor_core.py의 analyze·intervals·merge_ranges·splits와 HTML의 hpc-engine입니다. tests/test_monitor.py에서 경계 조건과 Python/JavaScript 결과를 비교합니다."
+      "로그는 자동 저장하지 않습니다. HTML은 브라우저 내부, Python 웹은 실행 서버 메모리에서 계산합니다. X11·웹은 동일 Python 엔진이고 HTML은 같은 기준의 JavaScript 엔진입니다. 근거 구현은 hpc_monitor_core.py의 analyze·intervals·merge_ranges·splits와 HTML의 hpc-engine입니다. tests/test_monitor.py에서 경계 조건과 Python/JavaScript 결과를 비교합니다.",
+      "이름·색상·그래프 설정은 브라우저의 로컬 저장소 또는 X11의 ~/.hpc-monitor-settings.json과 통합 JSON에 보관합니다. 다른 컴퓨터·브라우저로 옮길 때는 JSON을 저장하세요. PNG는 현재 페이지의 배치와 글꼴·색상을 반영합니다. 크기는 논리 픽셀이고 배율은 총 3,200만 픽셀·한 변 16,384픽셀 이내로 조정합니다. X11 상단 그래프 PNG 버튼에 배율을 적용합니다. 한글 표시에는 설치된 한글 글꼴을 사용합니다."
     ]
   },
   {
@@ -196,8 +214,35 @@
   }
 ]
 </script>
+<script id="hpc-presentation">
+const HPCStyle=(()=>{
+  const numbers={chartWidth:[1200,400,4000],chartHeight:[600,240,4000],pieColumns:[4,1,12],piesPerPage:[24,1,120],pieSize:[140,60,400],pieGap:[40,8,200],pieHole:[70,0,90],fontSize:[12,6,32],titleSize:[16,8,48],valueSize:[23,8,60],exportScale:[2,1,4]};
+  const colors={chartColor:'#087f8c',secondaryColor:'#5586bb',warningColor:'#d8a154',pieLowColor:'#2469cc',pieHighColor:'#cc2424',pieEmptyColor:'#e3e9ee'};
+  const color=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
+  function clean(raw={}){
+    const source=raw?.chartStyle||{},chartStyle={},userNames=Object.create(null),userColors=Object.create(null);
+    for(const [key,[def,low,high]]of Object.entries(numbers)){
+      const v=source[key],n=typeof v==='number'||typeof v==='string'&&v.trim()?Number(v):NaN;
+      chartStyle[key]=Number.isFinite(n)&&n>=low&&n<=high?n:def;
+      if(['pieColumns','piesPerPage'].includes(key))chartStyle[key]=Math.trunc(chartStyle[key]);
+    }
+    for(const [key,def]of Object.entries(colors))chartStyle[key]=color(source[key])?source[key]:def;
+    for(const [key,out]of [['userNames',userNames],['userColors',userColors]]){
+      const values=raw?.[key];if(!values||typeof values!=='object'||Array.isArray(values))continue;
+      for(const [id,value]of Object.entries(values))if(id&&typeof value==='string'&&value.trim()&&(key!=='userColors'||color(value.trim())))out[id]=value.trim();
+    }
+    return {chartStyle,userNames,userColors};
+  }
+  const keys=['pieMax','rangeMode','chartStyle','userNames','userColors'];
+  function mix(low,high,fraction){
+    const rgb=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)),a=rgb(low),b=rgb(high),t=Math.max(0,Math.min(1,fraction));
+    return '#'+a.map((v,i)=>Math.round(v+(b[i]-v)*t).toString(16).padStart(2,'0')).join('');
+  }
+  return {numbers,colors,color,clean,keys,mix};
+})();
+</script>
 <script id="hpc-engine" type="text/plain">'use strict';
-/* HPC Usage Monitor 1.5 — standalone, no network dependencies. */
+/* HPC Usage Monitor 1.6 — standalone, no network dependencies. */
 const HPC = (() => {
   const TYPES = ['user_cpu','queue_started','queue_pending','node_cpu','gpu_user','gpu'];
   const SCHEMA = {
@@ -270,6 +315,7 @@ const HPC = (() => {
   function detect(h){
     const set=new Set(h);
     if(!set.has('timestamp'))return null;
+    if(['node','gpu_index'].every(k=>set.has(k))&&!['user','pid'].some(k=>set.has(k))&&['gpu_util','mem_pct','mem_used_mb','temp_c','power_w'].some(k=>set.has(k)))return 'gpu';
     const distinctive = {user_cpu:['cpus_alloc','job_ids','user','node'],queue_started:['start_time','job_id','alloc_cpus'],queue_pending:['req_cpus','reason','job_id'],node_cpu:['cpu_total','cpu_alloc','node'],gpu_user:['pid','user','gpu_index'],gpu:['gpu_util','gpu_index','gpu_name']};
     return TYPES.find(k=>distinctive[k].every(x=>set.has(x)))||null;
   }
@@ -278,6 +324,7 @@ const HPC = (() => {
   function insert(store,type,raw,file,line,summary){
     const r=Object.create(null);
     for(const k of SCHEMA[type]){const v=raw[k];r[k]=NUMBERS.has(k)?num(v):String(v??'').trim();}
+    if(type==='gpu'&&r.mem_pct===null&&r.mem_total_mb>0&&r.mem_used_mb!==null)r.mem_pct=100*r.mem_used_mb/r.mem_total_mb;
     if(time(r.timestamp,540)===null){issue(store,file,line,'timestamp 형식 오류: '+String(r.timestamp).slice(0,80));summary.invalid++;return;}
     const required=type.startsWith('queue_')?['job_id','user']:type==='gpu_user'?['node','user','gpu_index','pid']:type==='user_cpu'?['node','user']:type==='gpu'?['node','gpu_index']:['node'];
     if(required.some(k=>r[k]===null||r[k]==='')){issue(store,file,line,'필수 식별자 누락: '+required.join(', '));summary.invalid++;return;}
@@ -328,6 +375,7 @@ const HPC = (() => {
     if(obj.demo===true)store.demo=true;
     if(obj.settings&&typeof obj.settings==='object'){
       const r=obj.settings,v={};
+      Object.assign(v,HPCStyle.clean(r));
       if([0,540].includes(+r.offset))v.offset=+r.offset;
       if(Number.isFinite(+r.interval)&&+r.interval>=1&&+r.interval<=1440)v.interval=+r.interval;
       if(['snapshot','event'].includes(r.startedMode))v.startedMode=r.startedMode;
@@ -340,11 +388,11 @@ const HPC = (() => {
       v.selectedDates=calendarDates(r.selectedDates);
       store.importedSettings=v;
     }
-    const summary={name,rows:0,duplicates:0,invalid:0,types:new Set()};
-    for(const type of TYPES)if(Array.isArray(obj.tables[type])){summary.types.add(type);obj.tables[type].forEach((r,i)=>{if(r&&typeof r==='object'&&!Array.isArray(r))insert(store,type,r,name,i+1,summary);else{summary.invalid++;issue(store,name,i+1,'JSON 행 형식 오류');}});}
+    const summary={name,rows:0,duplicates:0,invalid:0,types:new Set(Array.isArray(obj.availableTypes)?obj.availableTypes.filter(k=>TYPES.includes(k)):[])};
+    for(const type of TYPES)if(Array.isArray(obj.tables[type])){if(obj.tables[type].length)summary.types.add(type);obj.tables[type].forEach((r,i)=>{if(r&&typeof r==='object'&&!Array.isArray(r))insert(store,type,r,name,i+1,summary);else{summary.invalid++;issue(store,name,i+1,'JSON 행 형식 오류');}});}
     const s={...summary,types:[...summary.types]};store.files.push(s);return s;
   }
-  function session(store,settings){return {format:'hpc-monitor-session',version:1,settings,demo:store.demo,tables:Object.fromEntries(TYPES.map(k=>[k,[...store.tables[k].values()]]))};}
+  function session(store,settings){return {format:'hpc-monitor-session',version:1,settings,availableTypes:TYPES.filter(k=>store.tables[k].size||store.files.some(f=>f.types.includes(k))),demo:store.demo,tables:Object.fromEntries(TYPES.map(k=>[k,[...store.tables[k].values()]]))};}
   function normalize(store,opt){
     const key=store.dataRevision+':'+opt.offset;
     if(store.cache?.key===key)return store.cache.value;
@@ -375,13 +423,13 @@ const HPC = (() => {
     return t+(mode==='hour'?HOUR:mode==='week'?7*DAY:DAY);
   }
   function splits(a,b,mode,offset,fn){for(let t=a;t<b;){const bs=bucketStart(t,mode,offset),end=Math.min(b,nextBucket(bs,mode,offset));fn(bs,(end-t)/1000,t,end);t=end;}}
-  function intervals(rows,entity,clock,step,end){
+  function intervals(rows,entity,clock,step,end,perEntity=false){
     const by=new Map(),nextClock=new Map();
     for(let i=0;i<clock.length;i++)nextClock.set(clock[i],clock[i+1]??clock[i]);
     rows.forEach(r=>add(by,entity(r),()=>[]).push(r));
     const out=[];
     for(const arr of by.values())for(let i=0;i<arr.length;i++){
-      const r=arr[i],next=arr[i+1]?.t??end,c=nextClock.get(r.t),b=Math.min(next,r.t+step,end,c===undefined?end:c);
+      const r=arr[i],limit=perEntity?arr.at(-1).t:end,next=arr[i+1]?.t??limit,c=nextClock.get(r.t),b=Math.min(next,r.t+step,limit,perEntity||c===undefined?limit:c);
       if(b>r.t)out.push({a:r.t,b,r});
     }
     return out;
@@ -404,14 +452,14 @@ const HPC = (() => {
   }
   const waitStats=values=>({waitCount:values.length,waitMean:values.length?values.reduce((a,b)=>a+b,0)/values.length:null,waitMax:values.length?values.reduce((a,b)=>Math.max(a,b)):null});
   function analyze(store,options={}){
-    const opt={...defaults,...options},n=normalize(store,opt),T=n.tables,step=Math.max(1,Number(opt.interval)||30)*60000;
+    const opt={...defaults,...options,...HPCStyle.clean(options)},n=normalize(store,opt),T=n.tables,step=Math.max(1,Number(opt.interval)||30)*60000;
     if(!['all','include','exclude'].includes(opt.dateMode))opt.dateMode='all';
     opt.selectedDates=calendarDates(opt.selectedDates);
     const available=Object.fromEntries(TYPES.map(k=>[k,store.files.some(f=>f.types.includes(k))||T[k].length>0]));
     const empty={empty:true,meta:metadata(store,n),settings:opt};
     if(n.min===null)return empty;
     const from=Number.isFinite(opt.from)?opt.from:n.min,to=Number.isFinite(opt.to)?opt.to:n.max;
-    const snapshotOnly=available.gpu&&from===to&&from===n.min&&to===n.max;
+    const snapshotOnly=(available.gpu||available.gpu_user)&&from===to&&from===n.min&&to===n.max;
     if(!(to>from)&&!snapshotOnly)return {...empty,error:'집계에는 서로 다른 시각의 기록이 두 개 이상 필요합니다. 종료 시각은 시작 시각보다 뒤여야 합니다.'};
     if((to-from)/DAY>3653)return {...empty,error:'한 번에 조회할 수 있는 기간은 최대 10년입니다.'};
     const chosenDays=new Set(opt.selectedDates.map(d=>time(d+'T00:00:00',0)/DAY)),allowedDate=t=>opt.dateMode==='all'||chosenDays.has(Math.floor((t+opt.offset*60000)/DAY))===(opt.dateMode==='include');
@@ -562,10 +610,18 @@ const HPC = (() => {
     for(const r of T.queue_pending)if(inSelection(r.t)&&userMatch(r)&&rowGroup(r)&&!opt.nodes?.length)add(pendingSamples,r.t,()=>new Set()).add(JSON.stringify([r.job_id,r.sub]));
     for(const [t,set] of pendingSamples)day(t).pendingMax=Math.max(day(t).pendingMax,set.size);
     const gpuUserInt=intervals(windowRows(T.gpu_user,from-step,to),r=>JSON.stringify([r.node,r.gpu_index,r.pid,r.user,r.job_id]),opt.nodeClock?[...new Set([...n.times.gpu_user,...n.times.gpu])].sort((a,b)=>a-b):n.times.gpu_user,step,opt.nodeClock?Math.max(n.times.gpu_user.at(-1)??-Infinity,n.times.gpu.at(-1)??-Infinity):n.times.gpu_user.at(-1));
-    const userGPURanges=new Map(),allowedGPUs=new Set(),gpuMem=new Map();
+    const userGPURanges=new Map(),allowedGPUs=new Set(),gpuMem=new Map(),processSnapshots=new Map();
     for(const r of windowRows(T.gpu_user,from,to))if(inSelection(r.t,true)&&selected.has(r.node)&&userMatch(r)){
+      add(userStats,r.user,stats).nodes.add(r.node);
       const gid=r.node+'/GPU'+r.gpu_index;allowedGPUs.add(gid);
+      if(!processSnapshots.has(gid)||processSnapshots.get(gid)[0].t<r.t)processSnapshots.set(gid,[]);
+      processSnapshots.get(gid).push(r);
       add(gpuMem,gid,()=>({memSec:0,processSec:0,users:new Set()})).users.add(r.user);
+    }
+    const latestGpuUsers=new Map();
+    for(const rows of processSnapshots.values())for(const r of rows){
+      const item=add(latestGpuUsers,r.user,()=>({name:r.user,memUsedMb:null,processes:0,t:r.t}));
+      item.processes++;item.t=Math.max(item.t,r.t);if(r.mem_used_mb!==null)item.memUsedMb=(item.memUsedMb||0)+r.mem_used_mb;
     }
     for(const it of accounted(gpuUserInt)){const r=it.r;if(!selected.has(r.node)||!userMatch(r))continue;const {a,b}=it;
       const u=add(userStats,r.user,stats),sec=(b-a)/1000;u.nodes.add(r.node);if(r.mem_used_mb!==null){u.gpuMemSec+=r.mem_used_mb*sec;u.gpuWeight+=sec;}
@@ -577,9 +633,9 @@ const HPC = (() => {
     for(const r of windowRows(T.gpu,from,to))if(inSelection(r.t,true)&&selected.has(r.node)){
       const gid=r.node+'/GPU'+r.gpu_index;if(filteringUsers&&!allowedGPUs.has(gid))continue;
       add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));
-      latestGpu.set(gid,{id:gid,node:r.node,name:r.gpu_name,t:r.t,purpose:purposeFor(n.nodes.get(r.node)?.groups||[],r.node),util:r.gpu_util,memPct:r.mem_pct,temp:r.temp_c,power:r.power_w,users:[...(gpuMem.get(gid)?.users||[])]});
+      latestGpu.set(gid,{id:gid,node:r.node,name:r.gpu_name,t:r.t,purpose:purposeFor(n.nodes.get(r.node)?.groups||[],r.node),util:r.gpu_util,memPct:r.mem_pct,memUsedMb:r.mem_used_mb,temp:r.temp_c,power:r.power_w,users:[...(gpuMem.get(gid)?.users||[])]});
     }
-    const gpuInt=intervals(windowRows(T.gpu,from-step,to),r=>r.node+'/GPU'+r.gpu_index,n.times.gpu,step,n.times.gpu.at(-1));
+    const gpuInt=intervals(T.gpu,r=>r.node+'/GPU'+r.gpu_index,n.times.gpu,step,n.times.gpu.at(-1),true);
     for(const it of accounted(gpuInt)){const r=it.r,gid=r.node+'/GPU'+r.gpu_index;if(!selected.has(r.node)||(filteringUsers&&!allowedGPUs.has(gid)))continue;const {a,b}=it;
       const g=add(gpuStats,gid,()=>({...stats(),id:gid,node:r.node,index:r.gpu_index,name:r.gpu_name,uuid:r.uuid,memMax:null}));
       splits(a,b,opt.bucket,opt.offset,(bt,sec)=>{
@@ -595,7 +651,7 @@ const HPC = (() => {
     const ns=[...nodeStats].map(([name,s])=>({...s,name,purpose:purposeFor(n.nodes.get(name)?.groups||[],name),...waitStats(nodeWaits.get(name)||[]),state:states.get(name)||'',groups:[...(n.nodes.get(name)?.groups||[])].join(', '),type:n.nodes.get(name)?.nodeType||'',cores:n.nodes.get(name)?.cores,jobs:hasJobEvidence?(perNodeJobs.get(name)?.size||0):null,jobHours:hasJobEvidence?(perNodeJobSeconds.get(name)||0)/3600:null,coreHours:filteringUsers&&!available.user_cpu?null:s.coreSec/3600,busyHours:s.busy/3600,busyPct:ratio(s.busy,opt.denominator==='calendar'?rangeSec:s.observed),coveredBusyPct:ratio(s.busy,s.observed),allocPct:ratio(s.coreSec,opt.denominator==='calendar'?(n.nodes.get(name)?.cores??0)*rangeSec:s.capacitySec),coverage:ratio(s.observed,rangeSec),memPct:s.memWeight?s.memSec/s.memWeight:null,loadPct:s.loadWeight?s.loadSec/s.loadWeight:null}));
     const capacity=ns.reduce((a,s)=>a+s.capacitySec,0),observed=ns.reduce((a,s)=>a+s.observed,0),busy=ns.reduce((a,s)=>a+s.busy,0),cores=ns.reduce((a,s)=>a+s.coreSec,0);
     const fullNode=rangeSec*nodeNames.filter(x=>n.nodes.get(x)?.hasCPU).length,fullCore=rangeSec*nodeNames.reduce((a,x)=>a+(n.nodes.get(x)?.cores||0),0);
-    const users=[...userStats].map(([name,s])=>({name,coreHours:available.user_cpu?s.coreSec/3600:null,jobs:hasJobEvidence?s.jobs.size:null,submitted:available.queue_pending||available.queue_started?s.submitted||0:null,started:available.queue_started?s.started||0:null,jobHours:hasJobEvidence?(s.jobSec||0)/3600:null,activityPct:hasJobEvidence?ratio(seconds(activity.get(name)||[]),rangeSec):null,contribution:available.user_cpu?ratio(s.coreSec,opt.denominator==='calendar'?fullCore:physicalCapacity):null,gpuHours:available.gpu_user?(s.gpuDeviceSec||0)/3600:null,gpuMemHours:available.gpu_user?(s.gpuMemSec||0)/3600:null,nodes:[...s.nodes].join(', ')})).sort((a,b)=>(b.coreHours||b.gpuHours||0)-(a.coreHours||a.gpuHours||0));
+    const users=[...userStats].map(([name,s])=>({name,coreHours:available.user_cpu?s.coreSec/3600:null,jobs:hasJobEvidence?s.jobs.size:null,submitted:available.queue_pending||available.queue_started?s.submitted||0:null,started:available.queue_started?s.started||0:null,jobHours:hasJobEvidence?(s.jobSec||0)/3600:null,activityPct:hasJobEvidence?ratio(seconds(activity.get(name)||[]),rangeSec):null,contribution:available.user_cpu?ratio(s.coreSec,opt.denominator==='calendar'?fullCore:physicalCapacity):null,gpuHours:available.gpu_user&&!snapshotOnly?(s.gpuDeviceSec||0)/3600:null,gpuMemHours:available.gpu_user&&!snapshotOnly?(s.gpuMemSec||0)/3600:null,nodes:[...s.nodes].join(', ')})).sort((a,b)=>(b.coreHours||b.gpuHours||0)-(a.coreHours||a.gpuHours||0));
     const groups=[...groupStats].map(([name,s])=>({name,purpose:purposeFor([name]),...waitStats(groupWaits.get(name)||[]),nodeCount:s.nodes.size,jobs:hasJobEvidence?(perGroupJobs.get(name)?.size||0):null,jobHours:hasJobEvidence?(perGroupJobSeconds.get(name)||0)/3600:null,coreHours:filteringUsers&&!available.user_cpu?null:s.coreSec/3600,busyHours:s.busy/3600,allocPct:ratio(s.coreSec,opt.denominator==='calendar'?rangeSec*[...s.nodes].reduce((a,x)=>a+(n.nodes.get(x)?.cores||0),0):s.capacitySec),busyPct:ratio(s.busy,opt.denominator==='calendar'?s.nodes.size*rangeSec:s.observed),coverage:ratio(s.observed,s.nodes.size*rangeSec)}));
     const gpu=[...gpuStats.values()].map(g=>({id:g.id,node:g.node,name:g.name,purpose:purposeFor(n.nodes.get(g.node)?.groups||[],g.node),util:g.gpuWeight?g.gpuSec/g.gpuWeight:null,memPct:g.memWeight?g.memSec/g.memWeight:null,tempMax:g.tempMax,power:g.powerWeight?g.powerSec/g.powerWeight:null,energyWh:g.powerWeight?g.powerSec/3600:null,memMax:g.memMax,coverage:ratio(g.observed,rangeSec),users:[...(gpuMem.get(g.id)?.users||[])].join(', ')}));
     const activeClockRows=T.node_cpu.filter(r=>inSelection(r.t,true)&&selected.has(r.node)),lastNodeTs=activeClockRows.at(-1)?.t;
@@ -606,7 +662,7 @@ const HPC = (() => {
       heat:[...heat.values()].map(h=>({node:h.node,t:h.t,value:ratio(h.core,h.cap),coverage:ratio(h.obs,clip(h.t,nextBucket(h.t,opt.bucket,opt.offset)).reduce((s,[a,b])=>s+(b-a)/1000,0))})),
       gpuHeat:[...gpuHeat.values()].map(h=>({node:h.node,t:h.t,value:h.weight?h.value/h.weight:null,coverage:ratio(h.weight,clip(h.t,nextBucket(h.t,opt.bucket,opt.offset)).reduce((s,[a,b])=>s+(b-a)/1000,0))})),
       reasons:[...reason].map(([name,count])=>({name,count})),pendingRows:[...pendingAt.values()].map(j=>({id:j.id,user:j.user,partition:j.partition,cpus:j.pendingRecord.req_cpus,waitMin:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(j.submit!==null?(lastQueue-j.submit)/1000:null)))===null?null:(j.pendingRecord.wait_sec??(j.pendingRecord.wait_min!==null?j.pendingRecord.wait_min*60:(lastQueue-j.submit)/1000))/60,reason:j.pendingRecord.reason,priority:j.pendingRecord.priority})),
-      latestNodes,latestGpu:[...latestGpu.values()].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})),lastQueue,lastNodeTs,
+      latestNodes,latestGpu:[...latestGpu.values()].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})),latestGpuUsers:[...latestGpuUsers.values()].sort((a,b)=>a.name.localeCompare(b.name)),lastQueue,lastNodeTs,
       notices:[
         ...(opt.dateMode!=='all'?[(opt.dateMode==='include'?'선택한 날짜만 포함':'선택한 날짜 제외')+': '+opt.selectedDates.length+'일 선택. 포함된 시간만 집계하며 사용률·관측률 분모에서도 제외 날짜를 뺍니다.']:[]),
         '30분 사이에 시작하고 끝난 작업은 로그에 잡히지 않을 수 있습니다. 제출·시작 건수는 관측된 작업 기준입니다.',
@@ -676,10 +732,12 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     groups:[['group-pies','그룹별 사용률 원그래프'],['group-rank','코어 시간'],['group-rate','코어 할당률'],['group-wait','평균·최대 시작 대기']],
     users:[['user-rank','코어 시간'],['user-time','작업 시간'],['gpu-user-rank','GPU 점유시간']],
     queue:[['pending-trend','대기 작업 수'],['wait-trend','시작 대기시간'],['pending-reasons','대기 사유'],['job-timeline','작업 타임라인']],
-    gpu:[['gpu-latest','마지막 관측 사용률'],['gpu-heat','사용률 지도'],['gpu-trend','기간 평균 추이'],['gpu-user-rank','사용자 점유시간']]
+    gpu:[['gpu-latest','마지막 관측 사용률'],['gpu-memory','마지막 메모리 비율'],['gpu-memory-used','마지막 사용 메모리'],['gpu-heat','사용률 지도'],['gpu-trend','기간 평균 추이'],['gpu-user-rank','사용자 점유시간'],['gpu-user-memory','사용자 메모리 관측'],['gpu-processes','사용자 프로세스 관측'],['gpu-power','마지막 전력'],['gpu-temp','마지막 온도']]
   };
+  const presentationText=$('#hpc-presentation').textContent;
+  const appearance=HPCStyle;
   let api,worker,workerURL,request=0,waiting=new Map(),localState;
-  const engineText=$('#hpc-engine').textContent;
+  const engineText=presentationText+'\n'+$('#hpc-engine').textContent;
   const handler='let store=HPC.createStore(),last=null,lastKey=null;\n'+(async function run(m,emit){
     if(m.op==='import'){
       last=null;lastKey=null;
@@ -696,9 +754,9 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     if(m.op==='demo'){store=HPC.demo();last=null;lastKey=null;return HPC.describe(store,m.settings);}
     if(m.op==='clear'){store=HPC.createStore();last=null;lastKey=null;return true;}
     if(m.op==='analyze'){
-      const {pieMax,rangeMode,...accounting}=m.options||{},key=store.revision+':'+JSON.stringify(accounting);
+      const accounting=Object.fromEntries(Object.entries(m.options||{}).filter(([k])=>!HPCStyle.keys.includes(k))),key=store.revision+':'+JSON.stringify(accounting);
       if(lastKey!==key){last=HPC.analyze(store,m.options);lastKey=key;}
-      return last.empty?last:{...last,settings:{...last.settings,pieMax:pieMax||100,rangeMode:rangeMode||'dates'},jobs:last.jobs.slice(0,50),jobsTotal:last.jobs.length};
+      return last.empty?last:{...last,settings:{...last.settings,...HPCStyle.clean(m.options),pieMax:m.options?.pieMax||100,rangeMode:m.options?.rangeMode||'dates'},jobs:last.jobs.slice(0,50),jobsTotal:last.jobs.length};
     }
     if(m.op==='jobs'){if(!last||last.empty)return {rows:[],total:0};let rows=last.jobs;const q=String(m.query||'').toLowerCase();if(q)rows=rows.filter(r=>[r.id,r.user,r.partition,r.nodes,r.status,r.state].some(v=>String(v).toLowerCase().includes(q)));const dir=m.dir===-1?-1:1;rows=rows.slice().sort((a,b)=>{const x=a[m.key],y=b[m.key];if(x==null)return y==null?0:1;if(y==null)return -1;return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),undefined,{numeric:true}))*dir;});return {rows:rows.slice(m.page*50,m.page*50+50),total:rows.length};}
     if(m.op==='session')return JSON.stringify(HPC.session(store,m.settings));
@@ -718,6 +776,10 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   const codec=localState||new Function(engineText+'\nreturn {iso:HPC.iso,time:HPC.time,defaults:HPC.defaults};')();
   let saved={};try{saved=JSON.parse(localStorage.getItem('hpc-monitor-settings')||'{}');}catch{}
   const S={tab:'overview',charts:{overview:'daily-count',nodes:'node-pies',groups:'group-pies',users:'user-rank',queue:'pending-trend',gpu:'gpu-latest'},piePages:{},data:null,meta:null,loading:false,importing:false,options:{...codec.defaults,...saved,groups:[],nodes:[],users:[],from:null,to:null},importMode:saved.importMode||'append',theme:saved.theme||'light',tablePages:{},tableSort:{},jobPage:0,jobQuery:'',jobSort:'start',jobDir:-1,jobRows:[],jobTotal:0};
+  Object.assign(S.options,appearance.clean(saved));
+  const userName=id=>Object.hasOwn(S.options.userNames,id)?S.options.userNames[id]:id;
+  const userColor=id=>S.options.userColors[id]||'hsl('+((Math.max(0,(S.meta?.users||[]).slice().sort().indexOf(id))*.61803398875%1)*360)+',60%,47%)';
+  $('#settings-button').insertAdjacentHTML('afterend','<button class="button subtle" id="appearance-button">이름·그래프</button>');
   if(![0,540].includes(+S.options.offset))S.options.offset=540;
   S.options.interval=Math.max(1,Math.min(1440,+S.options.interval||30));
   if(!(S.options.pieMax>0&&S.options.pieMax<=100))S.options.pieMax=100;
@@ -727,12 +789,12 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   $('#bucket').value=S.options.bucket;
   if(S.theme==='dark')document.body.classList.add('dark');
   $('#theme-button').textContent=S.theme==='dark'?'라이트 모드':'다크 모드';
-  function persist(){try{localStorage.setItem('hpc-monitor-settings',JSON.stringify({offset:S.options.offset,interval:S.options.interval,startedMode:S.options.startedMode,nodeClock:S.options.nodeClock,denominator:S.options.denominator,bucket:S.options.bucket,pieMax:S.options.pieMax,rangeMode:S.options.rangeMode,importMode:S.importMode,theme:S.theme}));}catch{}}
+  function persist(){try{localStorage.setItem('hpc-monitor-settings',JSON.stringify({offset:S.options.offset,interval:S.options.interval,startedMode:S.options.startedMode,nodeClock:S.options.nodeClock,denominator:S.options.denominator,bucket:S.options.bucket,pieMax:S.options.pieMax,rangeMode:S.options.rangeMode,...appearance.clean(S.options),importMode:S.importMode,theme:S.theme}));}catch{toast('브라우저 설정을 저장하지 못했습니다. 통합 JSON으로 설정을 보관하세요.');}}
   function toast(message){const e=$('#toast');e.textContent=message;e.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.hidden=true,5500);}
   function setBusy(on,text){S.loading=on;$('#busy').hidden=!on;$('#import-button').disabled=on;$('#settings-button').disabled=on;if(text)$('#busy-text').textContent=text;if(on)$('#progress').value=0;}
   const stamp=t=>t===null||t===undefined?'—':codec.iso(t,+S.options.offset).replace('T',' ');
   const shortDate=t=>{const s=codec.iso(t,+S.options.offset);return S.data?.settings.bucket==='hour'?s.slice(5,10)+' '+s.slice(11,16):s.slice(5,10);};
-  const C=()=>{const s=getComputedStyle(document.body);return {ink:s.getPropertyValue('--ink').trim(),muted:s.getPropertyValue('--muted').trim(),line:s.getPropertyValue('--line').trim(),accent:s.getPropertyValue('--accent').trim(),blue:s.getPropertyValue('--chart-blue').trim(),orange:s.getPropertyValue('--chart-orange').trim(),panel:s.getPropertyValue('--panel').trim()};};
+  const C=()=>{const s=getComputedStyle(document.body),a=S.options.chartStyle;return {ink:s.getPropertyValue('--ink').trim(),muted:s.getPropertyValue('--muted').trim(),line:s.getPropertyValue('--line').trim(),accent:a.chartColor,blue:a.secondaryColor,orange:a.warningColor,panel:s.getPropertyValue('--panel').trim()};};
   function panel(id,title,sub,body,extra=''){
     const selected=S.charts[S.tab]||'all';
     if(id&&selected!=='all'&&selected!==id)return '';
@@ -779,11 +841,10 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     const data=rows.filter(r=>r[key]!==null&&r[key]!==undefined).slice().sort((a,b)=>b[key]-a[key]).slice(0,12);
     if(!data.length)return noChart();const c=C(),w=680,h=Math.max(235,data.length*31+28),left=data.some(r=>r.purpose)?195:118,right=76,iw=w-left-right,max=Math.max(1,...data.map(r=>r[key]));
     let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="사용량 순위"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
-    const users=(S.meta?.users||[]).slice().sort();
     data.forEach((r,i)=>{
-      const y=14+i*(h-27)/data.length,bw=r[key]/max*iw,name=String(r[labelKey]),label=name+(r.purpose?' · '+r.purpose:'');
-      const color=filterKind==='users'?'hsl('+((Math.max(0,users.indexOf(name))*.61803398875%1)*360)+',60%,47%)':c.accent;
-      svg+='<g'+(filterKind?' data-pick="'+filterKind+'" data-value="'+esc(name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"':'')+'><text x="'+(left-10)+'" y="'+(y+14)+'" text-anchor="end" fill="'+c.ink+'" font-size="11">'+esc(label.length>25?label.slice(0,24)+'…':label)+'</text><rect x="'+left+'" y="'+y+'" width="'+iw+'" height="21" rx="3" fill="'+c.line+'" opacity=".45"/><rect x="'+left+'" y="'+y+'" width="'+Math.max(0,bw)+'" height="21" rx="3" fill="'+color+'"/><text x="'+(left+iw+9)+'" y="'+(y+14)+'" fill="'+c.ink+'" font-size="10">'+f(r[key],1)+'</text><title>'+esc(label+': '+f(r[key],2)+' '+unit+(r.t==null?'':' · '+stamp(r.t)))+'</title></g>';
+      const y=14+i*(h-27)/data.length,bw=r[key]/max*iw,name=String(r[labelKey]),label=(filterKind==='users'?userName(name):name)+(r.purpose?' · '+r.purpose:'');
+      const color=filterKind==='users'?userColor(name):c.accent;
+      svg+='<g'+(filterKind?' data-pick="'+filterKind+'" data-value="'+esc(name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"':'')+'><text '+(filterKind==='users'?'data-rename-user="'+esc(name)+'" tabindex="0" role="button" aria-label="'+esc(name)+' 이름 편집" ':'')+'x="'+(left-10)+'" y="'+(y+14)+'" text-anchor="end" fill="'+c.ink+'" font-size="11">'+esc(label.length>25?label.slice(0,24)+'…':label)+'</text><rect x="'+left+'" y="'+y+'" width="'+iw+'" height="21" rx="3" fill="'+c.line+'" opacity=".45"/><rect x="'+left+'" y="'+y+'" width="'+Math.max(0,bw)+'" height="21" rx="3" fill="'+color+'"/><text x="'+(left+iw+9)+'" y="'+(y+14)+'" fill="'+c.ink+'" font-size="10">'+f(r[key],1)+'</text><title>'+esc(label+': '+f(r[key],2)+' '+unit+(r.t==null?'':' · '+stamp(r.t)))+'</title></g>';
     });
     svg+='</svg>';return '<div class="chart">'+svg+'</div><div class="panel-note">상위 12개 · '+esc(unit)+(filterKind?' · 항목을 클릭해 필터링':'')+'</div>';
   }
@@ -804,36 +865,38 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   }
   function allocationPies(id,rows,kind='nodes'){
     if(!rows.length)return noChart();
-    const total=rows.length,pages=Math.ceil(total/24),page=Math.max(0,Math.min(S.piePages[id]||0,pages-1)),maximum=Number(S.options.pieMax)||100;
-    S.piePages[id]=page;rows=rows.slice(page*24,(page+1)*24);
-    const c=C(),cols=Math.min(window.innerWidth<=600?1:4,rows.length),w=cols*250,h=Math.ceil(rows.length/cols)*235+12,radius=57,circumference=2*Math.PI*radius;
+    const a=S.options.chartStyle,total=rows.length,perPage=a.piesPerPage,pages=Math.ceil(total/perPage),page=Math.max(0,Math.min(S.piePages[id]||0,pages-1)),maximum=Number(S.options.pieMax)||100;
+    S.piePages[id]=page;rows=rows.slice(page*perPage,(page+1)*perPage);
+    const c=C(),cols=Math.min(a.pieColumns,rows.length),cell=Math.max(a.pieSize+2*a.pieGap,a.titleSize*10),rowHeight=a.pieSize+2*a.pieGap+a.titleSize+3*a.fontSize;
+    const w=Math.max(a.chartWidth,cols*cell),h=Math.max(a.chartHeight,Math.ceil(rows.length/cols)*rowHeight+20),radius=a.pieSize/2,thickness=radius*(1-a.pieHole/100),pathRadius=radius-thickness/2,circumference=2*Math.PI*pathRadius;
     let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="코어 할당률 원그래프"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
     rows.forEach((row,i)=>{
-      const x=(i%cols)*250+125,y=Math.floor(i/cols)*235+112,value=row.allocPct,known=Number.isFinite(value),clamped=Math.max(0,Math.min(1,(value||0)/maximum)),color='hsl('+(220+140*Math.max(0,Math.min(100,value||0))/100)+',70%,47%)';
+      const x=(i%cols+.5)*w/cols,y=Math.floor(i/cols)*rowHeight+a.pieGap+a.titleSize+2*a.fontSize+radius;
+      const value=row.allocPct,known=Number.isFinite(value),clamped=Math.max(0,Math.min(1,(value||0)/maximum)),color=appearance.mix(a.pieLowColor,a.pieHighColor,(value||0)/100);
       const label=row.name+' · '+row.purpose+' · '+(known?f(value,1)+'%':'기록 없음')+' · 완전 채움 기준 '+maximum+'%';
       const action=kind?'data-pick="'+kind+'" data-value="'+esc(row.name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"':'role="img" aria-label="'+esc(label)+'"';
-      svg+='<g '+action+'><title>'+esc(label)+'</title><text x="'+x+'" y="'+(y-86)+'" text-anchor="middle" fill="'+c.ink+'" font-size="16" font-weight="bold">'+esc(row.name)+'</text><text x="'+x+'" y="'+(y-65)+'" text-anchor="middle" fill="'+c.muted+'" font-size="12">'+esc(row.purpose)+'</text><circle cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="none" stroke="'+c.line+'" stroke-width="17"'+(known?'':' stroke-dasharray="3 5"')+'/>';
-      if(known)svg+='<circle data-actual="'+value+'" data-fill="'+clamped+'" data-maximum="'+maximum+'" cx="'+x+'" cy="'+y+'" r="'+radius+'" fill="none" stroke="'+color+'" stroke-width="17" stroke-dasharray="'+(circumference*clamped)+' '+circumference+'" transform="rotate(-90 '+x+' '+y+')"/>';
-      svg+='<text x="'+x+'" y="'+(y+7)+'" text-anchor="middle" fill="'+(known?color:c.muted)+'" font-size="23" font-weight="bold">'+(known?f(value,1)+'%':'기록 없음')+'</text><text x="'+x+'" y="'+(y+86)+'" text-anchor="middle" fill="'+c.muted+'" font-size="11">관측률 '+f(row.coverage,1)+'%</text><text x="'+x+'" y="'+(y+105)+'" text-anchor="middle" fill="'+c.muted+'" font-size="11">원 전체 기준 '+maximum+'%</text></g>';
+      svg+='<g '+action+'><title>'+esc(label)+'</title><text x="'+x+'" y="'+(y-radius-2*a.fontSize)+'" text-anchor="middle" fill="'+c.ink+'" font-size="'+a.titleSize+'" font-weight="bold">'+esc(row.name)+'</text><text x="'+x+'" y="'+(y-radius-a.fontSize/2)+'" text-anchor="middle" fill="'+c.muted+'" font-size="'+a.fontSize+'">'+esc(row.purpose)+'</text><circle cx="'+x+'" cy="'+y+'" r="'+pathRadius+'" fill="none" stroke="'+a.pieEmptyColor+'" stroke-width="'+thickness+'"'+(known?'':' stroke-dasharray="3 5"')+'/>';
+      if(known)svg+='<circle data-actual="'+value+'" data-fill="'+clamped+'" data-maximum="'+maximum+'" cx="'+x+'" cy="'+y+'" r="'+pathRadius+'" fill="none" stroke="'+color+'" stroke-width="'+thickness+'" stroke-dasharray="'+(circumference*clamped)+' '+circumference+'" transform="rotate(-90 '+x+' '+y+')"/>';
+      svg+='<text x="'+x+'" y="'+(y+a.valueSize*.3)+'" text-anchor="middle" fill="'+(known?color:c.muted)+'" font-size="'+a.valueSize+'" font-weight="bold" paint-order="stroke" stroke="'+c.panel+'" stroke-width="3" stroke-linejoin="round">'+(known?f(value,1)+'%':'기록 없음')+'</text><text x="'+x+'" y="'+(y+radius+1.5*a.fontSize)+'" text-anchor="middle" fill="'+c.muted+'" font-size="'+a.fontSize+'">관측률 '+f(row.coverage,1)+'%</text><text x="'+x+'" y="'+(y+radius+3*a.fontSize)+'" text-anchor="middle" fill="'+c.muted+'" font-size="'+a.fontSize+'">원 전체 기준 '+maximum+'%</text></g>';
     });
-    const pager=pages>1?'<div class="pager"><span>'+total+'개 중 '+(page*24+1)+'–'+Math.min(total,(page+1)*24)+' · '+(page+1)+'/'+pages+'</span><div><button data-pie="'+id+'" data-delta="-1" '+(page===0?'disabled':'')+'>이전</button><button data-pie="'+id+'" data-delta="1" '+(page+1>=pages?'disabled':'')+'>다음</button></div></div>':'';
-    return '<div class="legend"><span><i style="background:hsl(220,70%,47%)"></i>낮은 할당률</span><span><i style="background:hsl(360,70%,47%)"></i>높은 할당률</span><span>완전 채움 기준 '+maximum+'% · 숫자는 실제 할당률 · 점선: 기록 없음</span></div>'+pager+'<div class="chart"'+(rows.length===1?' style="max-width:340px;margin:auto"':'')+'>'+svg+'</svg></div>';
+    const pager=pages>1?'<div class="pager"><span>'+total+'개 중 '+(page*perPage+1)+'–'+Math.min(total,(page+1)*perPage)+' · '+(page+1)+'/'+pages+'</span><div><button data-pie="'+id+'" data-delta="-1" '+(page===0?'disabled':'')+'>이전</button><button data-pie="'+id+'" data-delta="1" '+(page+1>=pages?'disabled':'')+'>다음</button></div></div>':'';
+    return '<div class="legend"><span><i style="background:'+a.pieLowColor+'"></i>낮은 할당률</span><span><i style="background:'+a.pieHighColor+'"></i>높은 할당률</span><span>완전 채움 기준 '+maximum+'% · 숫자는 실제 할당률 · 점선: 기록 없음</span></div>'+pager+'<div class="chart">'+svg+'</svg></div>';
   }
   function heatmap(id,records,names,gpu=false){
     if(!records.length||!names.length)return noChart();const c=C(),dates=S.data.series.map(r=>r.t),lookup=new Map(records.map(r=>[r.node+'|'+r.t,r])),left=gpu?250:205,cw=Math.max(19,Math.min(65,760/Math.max(1,dates.length))),rh=26,w=Math.max(600,left+dates.length*cw+20),h=45+names.length*rh;
     let svg='<svg id="'+id+'" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+(gpu?'GPU':'노드')+'별 사용률 히트맵"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/><defs><pattern id="'+id+'-missing" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="5" height="5" fill="'+c.panel+'"/><path d="M0 5L5 0" stroke="'+c.line+'"/></pattern></defs>';
     dates.forEach((t,i)=>{if(i%Math.max(1,Math.ceil(dates.length/12))===0)svg+='<text x="'+(left+i*cw+cw/2)+'" y="13" text-anchor="middle" fill="'+c.muted+'" font-size="9">'+esc(shortDate(t))+'</text>';});
     names.forEach((name,ri)=>{const yy=28+ri*rh,label=name+' · '+((gpu?S.data.gpu.find(r=>r.id===name):S.data.nodes.find(r=>r.name===name))?.purpose||'미지정');svg+='<g data-pick="nodes" data-value="'+esc(gpu?name.split('/GPU')[0]:name)+'" tabindex="0" role="button" aria-label="'+esc(label)+' 필터 적용" style="cursor:pointer"><text x="'+(left-10)+'" y="'+(yy+14)+'" text-anchor="end" fill="'+c.ink+'" font-size="10">'+esc(label)+'</text></g>';
-      dates.forEach((t,i)=>{const r=lookup.get(name+'|'+t),v=r?.value,known=v!==null&&v!==undefined,clamp=Math.max(0,Math.min(100,v||0)),color=known?(clamp===0?c.line:'hsl(181, '+(40+clamp*.14)+'%, '+(88-clamp*.56)+'%)'):'url(#'+id+'-missing)';svg+='<rect x="'+(left+i*cw+1)+'" y="'+yy+'" width="'+(cw-3)+'" height="20" rx="3" fill="'+color+'"><title>'+esc(name+' · '+stamp(t)+' · '+(known?f(v,1)+'% · 관측률 '+f(r.coverage,1)+'%':'기록 없음'))+'</title></rect>';if(known&&r.coverage<99.9)svg+='<rect x="'+(left+i*cw+1)+'" y="'+yy+'" width="'+(cw-3)+'" height="2" fill="'+c.orange+'"/>';});
+      dates.forEach((t,i)=>{const r=lookup.get(name+'|'+t),v=r?.value,known=v!==null&&v!==undefined,clamp=Math.max(0,Math.min(100,v||0)),color=known?appearance.mix(S.options.chartStyle.pieLowColor,S.options.chartStyle.pieHighColor,clamp/100):'url(#'+id+'-missing)';svg+='<rect x="'+(left+i*cw+1)+'" y="'+yy+'" width="'+(cw-3)+'" height="20" rx="3" fill="'+color+'"><title>'+esc(name+' · '+stamp(t)+' · '+(known?f(v,1)+'% · 관측률 '+f(r.coverage,1)+'%':'기록 없음'))+'</title></rect>';if(known&&r.coverage<99.9)svg+='<rect x="'+(left+i*cw+1)+'" y="'+yy+'" width="'+(cw-3)+'" height="2" fill="'+c.orange+'"/>';});
     });
-    svg+='</svg>';return '<div class="legend"><span><i style="background:'+c.line+'"></i>0%</span><span><i style="background:hsl(181,54%,32%)"></i>100%</span><span>사선: 기록 없음</span><span>주황 표시: 일부 시간만 관측</span></div><div class="chart-scroll">'+svg+'</div>';
+    svg+='</svg>';return '<div class="legend"><span><i style="background:'+S.options.chartStyle.pieLowColor+'"></i>0%</span><span><i style="background:'+S.options.chartStyle.pieHighColor+'"></i>100%</span><span>사선: 기록 없음</span><span>주황 표시: 일부 시간만 관측</span></div><div class="chart-scroll">'+svg+'</div>';
   }
   function timeline(){
     const rows=S.data.jobs.filter(r=>r.ranges?.length).slice(0,35);if(!rows.length)return noChart('실행 구간을 추정할 작업 기록이 없습니다.');
     const c=C(),w=1000,left=150,iw=w-left-25,h=46+rows.length*26,span=S.data.to-S.data.from;
     let svg='<svg id="job-timeline" viewBox="0 0 '+w+' '+h+'" role="img" aria-label="작업 실행 구간"><rect width="'+w+'" height="'+h+'" fill="'+c.panel+'"/>';
     for(let i=0;i<=6;i++){const x=left+iw*i/6;svg+='<line x1="'+x+'" y1="26" x2="'+x+'" y2="'+h+'" stroke="'+c.line+'"/><text x="'+x+'" y="13" fill="'+c.muted+'" font-size="9" text-anchor="middle">'+esc(shortDate(S.data.from+span*i/6))+'</text>';}
-    rows.forEach((r,i)=>{const y=31+i*26;svg+='<text x="'+(left-9)+'" y="'+(y+12)+'" text-anchor="end" fill="'+c.ink+'" font-size="10">'+esc(r.id+' · '+r.user)+'</text>';for(const [a,b]of r.ranges){const x=left+(a-S.data.from)/span*iw,bw=(b-a)/span*iw;svg+='<rect x="'+x+'" y="'+y+'" width="'+Math.max(1,bw)+'" height="17" rx="3" fill="'+c.accent+'" opacity=".8"><title>'+esc(r.id+' / '+r.user+' · '+stamp(a)+' ~ '+stamp(b)+' · 추정')+'</title></rect>';}});svg+='</svg>';return '<div class="chart-scroll">'+svg+'</div><div class="panel-note">최근 작업 최대 35개 · 공백 구간은 연결하지 않습니다.</div>';
+    rows.forEach((r,i)=>{const y=31+i*26;svg+='<text x="'+(left-9)+'" y="'+(y+12)+'" text-anchor="end" fill="'+c.ink+'" font-size="10">'+esc(r.id+' · '+userName(r.user))+'</text>';for(const [a,b]of r.ranges){const x=left+(a-S.data.from)/span*iw,bw=(b-a)/span*iw;svg+='<rect x="'+x+'" y="'+y+'" width="'+Math.max(1,bw)+'" height="17" rx="3" fill="'+c.accent+'" opacity=".8"><title>'+esc(r.id+' / '+userName(r.user)+' · '+stamp(a)+' ~ '+stamp(b)+' · 추정')+'</title></rect>';}});svg+='</svg>';return '<div class="chart-scroll">'+svg+'</div><div class="panel-note">최근 작업 최대 35개 · 공백 구간은 연결하지 않습니다.</div>';
   }
   const COLS={
     nodes:[['name','노드','pick:nodes'],['groups','그룹'],['state','마지막 확인 state'],['cores','전체 코어','n0'],['jobs','실행 작업 수','n0'],['jobHours','누적 작업 시간 · h','n1'],['coreHours','코어 시간 · core·h','n1'],['busyHours','점유 시간 · h','n1'],['busyPct','작업 점유율','pct'],['allocPct','코어 할당률','pct'],['coverage','관측률','coverage'],['memPct','메모리 할당률','pct'],['loadPct','CPU load 비율','pct']],
@@ -846,7 +909,8 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     issues:[['file','파일'],['line','행','n0'],['message','확인 내용']],
     daily:[['t','구간 시작','time'],['submitted','제출 작업 수','n0'],['started','시작 작업 수','n0'],['running','실행 작업 수','n0'],['jobHours','추정 작업 시간 · h','n2'],['coreHours','코어 시간 · core·h','n2'],['allocPct','코어 할당률','pct'],['busyPct','작업 점유율','pct'],['gpuUtil','GPU 사용률','pct'],['pendingMax','대기 작업 최대','n0']]
   };
-  COLS.latestGpu=[['id','GPU'],['node','노드'],['purpose','계산 용도'],['t','마지막 관측 시각','time'],['util','관측 사용률','pct'],['memPct','관측 메모리 비율','pct'],['temp','관측 온도 · °C','n1'],['power','관측 전력 · W','n1'],['users','관측 사용자']];
+  COLS.latestGpu=[['id','GPU'],['node','노드'],['purpose','계산 용도'],['t','마지막 관측 시각','time'],['util','관측 사용률','pct'],['memPct','관측 메모리 비율','pct'],['memUsedMb','관측 사용 메모리 MB','n1'],['temp','관측 온도 · °C','n1'],['power','관측 전력 · W','n1'],['users','관측 사용자']];
+  COLS.latestGpuUsers=[['name','사용자','pick:users'],['t','마지막 프로세스 관측','time'],['memUsedMb','관측 메모리 · MB','n1'],['processes','관측 프로세스','n0']];
   for(const name of ['nodes','groups','daily'])COLS[name].push(['waitCount','대기 표본 작업 수','n0'],['waitMean','평균 시작 대기 · min','minutes'],['waitMax','최대 시작 대기 · min','minutes']);
   for(const name of ['nodes','groups','gpu'])COLS[name].splice(2,0,['purpose','계산 용도']);
   function cell(v,type){
@@ -857,7 +921,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     if(type==='coverage')return '<span class="coverage-bar"><i><b style="width:'+Math.max(0,Math.min(100,v))+'%"></b></i>'+f(v,1)+'%</span>';
     if(type?.startsWith('n'))return f(v,+type.slice(1));
     if(type==='status')return '<span class="status'+(v.includes('추정')?' warn':'')+'">'+esc(v)+'</span>';
-    if(type?.startsWith('pick:'))return '<button class="name-link" data-pick="'+type.slice(5)+'" data-value="'+esc(v)+'">'+esc(v)+'</button>';
+    if(type?.startsWith('pick:'))return '<button class="name-link" data-pick="'+type.slice(5)+'" data-value="'+esc(v)+'" title="'+esc(v)+'">'+esc(type==='pick:users'?userName(v):v)+'</button>';
     return esc(Array.isArray(v)?v.join(', '):v);
   }
   function table(id,title,sub,rows,cols,job=false){
@@ -907,18 +971,25 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
       html+=panel('job-timeline','작업 실행 타임라인','작업 종료는 다음 스냅샷에서 사라진 시각으로 추정',()=>timeline());
       html+='<div id="job-table-slot">'+table('jobs','작업 이력','정상 완료·실패 건수는 현재 로그만으로 확정할 수 없습니다.',S.jobRows,COLS.jobs,true)+'</div>';
     }else if(S.tab==='gpu'){
-      if(!d.gpu.length)html+='<div class="notice">GPU 장치 기록이 조회 조건에 없습니다. gpu 로그와 기간·그룹·노드·사용자 필터를 확인하세요. <button class="button subtle" id="gpu-reset-filters">조회 조건 초기화</button></div>';
+      if(!d.gpu.length)html+='<div class="notice">'+(d.latestGpuUsers.length?'gpu_user 프로세스 기록을 표시합니다. 장치 사용률·온도·전력에는 gpu 장치 로그가 필요합니다.':'GPU 장치 기록이 조회 조건에 없습니다. gpu 로그와 기간·그룹·노드·사용자 필터를 확인하세요.')+' <button class="button subtle" id="gpu-reset-filters">조회 조건 초기화</button></div>';
       html+=panel('gpu-latest','GPU 마지막 관측 사용률','단일 기록도 표시 · 마지막 관측 시각은 아래 표 참고 · 기간 평균과 구분',()=>horizontal('gpu-latest',d.latestGpu,'util','id','%',null));
+      html+=panel('gpu-memory','GPU 마지막 관측 메모리 비율','mem_pct 또는 사용 메모리 ÷ 전체 메모리 · 장치 전체 값',()=>horizontal('gpu-memory',d.latestGpu,'memPct','id','%',null));
+      html+=panel('gpu-memory-used','GPU 마지막 관측 사용 메모리','장치 전체 사용 메모리 · 용량을 몰라도 MB로 표시',()=>horizontal('gpu-memory-used',d.latestGpu,'memUsedMb','id','MB',null));
+      html+=panel('gpu-user-memory','사용자별 마지막 GPU 메모리 관측','각 GPU의 마지막 프로세스 관측 · 현재 상태·기간 평균과 구분',()=>horizontal('gpu-user-memory',d.latestGpuUsers,'memUsedMb','name','MB','users'));
+      html+=panel('gpu-processes','사용자별 마지막 GPU 프로세스 관측','각 GPU의 마지막 프로세스 관측에 포함된 프로세스 수',()=>horizontal('gpu-processes',d.latestGpuUsers,'processes','name','개','users'));
+      html+=panel('gpu-power','GPU 마지막 관측 전력','단일 스냅샷 · 기간 평균·에너지와 구분',()=>horizontal('gpu-power',d.latestGpu,'power','id','W',null));
+      html+=panel('gpu-temp','GPU 마지막 관측 온도','단일 스냅샷 · 기간 최대·평균과 구분',()=>horizontal('gpu-temp',d.latestGpu,'temp','id','°C',null));
       html+='<div class="cards">'+card('관측 GPU',f(d.gpu.length,0),'개','노드와 GPU index 조합 기준','▧')+card('평균 GPU 사용률',f(s.gpuUtil),'%','장치 전체 값 · 관측시간 가중평균','◔')+card('최대 관측 온도',f(d.gpu.some(r=>r.tempMax!==null)?Math.max(...d.gpu.filter(r=>r.tempMax!==null).map(r=>r.tempMax)):null),'°C','기간 내 기록된 최댓값','♨')+card('관측 사용자',f(new Set(d.latestGpu.flatMap(r=>r.users)).size,0),'명','gpu_user 프로세스 기록 기준','♙')+'</div>';
       if(S.options.users.length)html+='<div class="notice">아래 GPU 사용률·전력·온도는 선택 사용자가 사용한 장치 전체 값입니다. 공유 GPU의 사용자별 계산 사용률을 뜻하지 않습니다.</div>';
       html+=panel('gpu-heat','GPU별 사용률','gpu 로그의 실제 측정값 · 시간 가중평균',()=>heatmap('gpu-heat',d.gpuHeat,d.gpu.map(r=>r.id),true));
       html+='<div class="grid equal">'+panel('gpu-trend','GPU 사용률 추이','선택한 장치의 관측시간 가중평균',()=>lines('gpu-trend',d.series,[{key:'gpuUtil',label:'장치 사용률',color:c.accent}]))+panel('gpu-user-rank','사용자별 GPU 점유시간','프로세스가 관측된 시간 · 계산 사용률과 구분',()=>horizontal('gpu-user-rank',d.users,'gpuHours','name','GPU·h','users'))+'</div>';
       html+=table('gpu-snapshots','GPU 마지막 관측값','각 장치의 마지막 관측 시각 · 현재 실시간 값이나 기간 평균을 뜻하지 않음',d.latestGpu,COLS.latestGpu);
       html+=table('gpu','GPU 장치별 상세','전력으로부터 관측 구간의 에너지를 추정합니다.',d.gpu,COLS.gpu);
+      html+=table('gpu-process-observations','GPU 사용자 마지막 프로세스 관측','각 장치에서 마지막으로 관측된 프로세스의 사용자별 합계 · 관측되지 않은 종료는 추정하지 않음',d.latestGpuUsers,COLS.latestGpuUsers);
     }else html=dataView();
     const choices=CHARTS[S.tab];
     $('#view').innerHTML=(choices?'<div class="graph-switch" role="group" aria-label="그래프 바로 전환">'+[['all','전체 차트'],...choices].map(([id,label])=>'<button class="button subtle" data-chart-select="'+id+'">'+esc(label)+'</button>').join('')+'</div>':'')+html;
-    selectChart();
+    selectChart();styleCharts();
     updateMethod();if(S.tab==='queue'&&(S.jobPage||S.jobQuery||S.jobSort!=='start'||S.jobDir!==-1))refreshJobs();
   }
   function dataView(){
@@ -941,8 +1012,8 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
       if(reset)S.options[kind]=[];
       S.options[kind]=S.options[kind].filter(v=>meta[kind].includes(v));
       const root=$('#filter-'+kind),choices=root.querySelector('.choices');
-      choices.innerHTML='<button class="choice-clear" data-clear="'+kind+'">전체 선택으로 초기화</button>'+meta[kind].map(v=>'<label><input type="checkbox" data-filter="'+kind+'" value="'+esc(v)+'" '+(S.options[kind].includes(v)?'checked':'')+'>'+esc(v)+'</label>').join('');
-      root.querySelector('summary').textContent=S.options[kind].length===0?'전체 '+({groups:'그룹',nodes:'노드',users:'사용자'}[kind]):S.options[kind].length===1?S.options[kind][0]:S.options[kind].length+'개 선택';
+      choices.innerHTML='<button class="choice-clear" data-clear="'+kind+'">전체 선택으로 초기화</button>'+meta[kind].map(v=>'<label><input type="checkbox" data-filter="'+kind+'" value="'+esc(v)+'" '+(S.options[kind].includes(v)?'checked':'')+'>'+esc(kind==='users'?userName(v)+' ('+v+')':v)+'</label>').join('');
+      root.querySelector('summary').textContent=S.options[kind].length===0?'전체 '+({groups:'그룹',nodes:'노드',users:'사용자'}[kind]):S.options[kind].length===1?(kind==='users'?userName(S.options[kind][0]):S.options[kind][0]):S.options[kind].length+'개 선택';
     }
   }
   function setRange(meta){
@@ -1015,12 +1086,13 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   syncDateFilter();
   configureRange();
   let analysisGeneration=0,analysisRunning=false,analysisPending=false;
+  function gpuOnly(meta){return (meta.counts.gpu||meta.counts.gpu_user)&&!['node_cpu','user_cpu','queue_started','queue_pending'].some(k=>meta.counts[k]);}
   async function analyze(){
     if(!S.meta||S.importing)return;
     if(analysisRunning){analysisPending=true;analysisGeneration++;return;}
     const generation=++analysisGeneration;
     [S.options.from,S.options.to]=rangeValues();S.options.bucket=$('#bucket').value;
-    const snapshotOnly=S.meta.counts.gpu>0&&S.meta.min===S.meta.max&&S.options.from!==null&&S.options.to!==null&&S.options.from<=S.meta.min&&S.meta.min<=S.options.to;
+    const snapshotOnly=(S.meta.counts.gpu>0||S.meta.counts.gpu_user>0)&&S.meta.min===S.meta.max&&S.options.from!==null&&S.options.to!==null&&S.options.from<=S.meta.min&&S.meta.min<=S.options.to;
     if(snapshotOnly){S.options.from=S.meta.min;S.options.to=S.meta.max;}
     if(S.options.from===null||S.options.to===null||S.options.to<=S.options.from&&!snapshotOnly){setBusy(false);$('#notice').hidden=false;$('#notice').className='notice error';$('#notice').textContent='시작·종료 시각을 확인하세요. 시간 집계에는 서로 다른 시각의 기록이 필요합니다.';return;}
     setBusy(true,'사용량을 집계하고 있습니다…');
@@ -1029,6 +1101,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
       const d=await api('analyze',{options:S.options});if(generation!==analysisGeneration)return;
       S.data=d;S.meta=d.meta;S.tablePages={};S.piePages={};S.jobPage=0;S.jobRows=d.jobs||[];S.jobTotal=d.jobsTotal||0;
       if(d.empty){$('#range-caption').textContent='조회 조건에 맞는 집계 결과가 없습니다.';$('#notice').hidden=false;$('#notice').className='notice error';$('#notice').textContent=d.error||'로그를 불러오세요.';render();return;}
+      if(S.charts.gpu==='gpu-latest'&&!d.latestGpu.some(r=>r.util!==null))S.charts.gpu=[['memPct','gpu-memory'],['memUsedMb','gpu-memory-used'],['power','gpu-power'],['temp','gpu-temp']].find(([key])=>d.latestGpu.some(r=>r[key]!==null))?.[1]||(d.latestGpuUsers.some(r=>r.memUsedMb!==null)?'gpu-user-memory':'gpu-processes');
       if(d.settings?.bucket!==S.options.bucket){S.options.bucket=d.settings.bucket;$('#bucket').value=d.settings.bucket;toast('긴 조회기간에 맞춰 표시 간격을 조정했습니다.');}
       const counts=Object.values(S.meta.counts).reduce((a,b)=>a+b,0);
       $('#dataset-badge').textContent=S.meta.demo?'예제 데이터 · 실제 로그 아님':f(counts,0)+'개 기록';
@@ -1053,7 +1126,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     try{
       const res=await api(op,{files:[...files],replace:S.importMode==='replace',settings:S.options});
       if(res.restored){
-        const r=res.restored;
+        const r=res.restored;Object.assign(S.options,appearance.clean(r));
         if([0,540].includes(+r.offset))S.options.offset=+r.offset;
         if(+r.interval>=1&&+r.interval<=1440)S.options.interval=+r.interval;
         if(['snapshot','event'].includes(r.startedMode))S.options.startedMode=r.startedMode;
@@ -1066,12 +1139,12 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
         S.options.selectedDates=cleanSelectedDates(r.selectedDates);syncDateFilter();
         persist();
       }
-      S.meta=res.meta;S.data=null;setRange(S.meta);fillFilters(S.meta,true);
+      S.meta=res.meta;S.data=null;setRange(S.meta);fillFilters(S.meta,true);if(gpuOnly(S.meta))S.tab='gpu';S.charts.gpu='gpu-latest';
       S.importing=false;
       const count=Object.values(S.meta.counts).reduce((a,b)=>a+b,0);
       $('#dataset-badge').textContent=S.meta.demo?'예제 데이터 · 실제 로그 아님':f(count,0)+'개 기록';$('#dataset-badge').className='badge '+(S.meta.demo?'demo':'ready');
       if(S.meta.min===null){S.tab='data';render();toast('읽을 수 있는 기록이 없습니다. 헤더와 탭 구분을 확인하세요.');}
-      else if(S.meta.min===S.meta.max&&S.meta.counts.gpu){S.tab='gpu';await analyze();}
+      else if(S.meta.min===S.meta.max&&(S.meta.counts.gpu||S.meta.counts.gpu_user)){S.tab='gpu';await analyze();}
       else if(S.meta.min===S.meta.max){S.data={empty:true,meta:S.meta,error:'현재 기록 시각이 하나뿐입니다. 시간・사용률 집계에는 다음 시각의 로그를 추가하세요.'};S.tab='data';render();}
       else await analyze();
     }catch(e){toast('불러오기 실패: '+e.message);}finally{S.importing=false;setBusy(false);$('#file-input').value='';}
@@ -1096,10 +1169,13 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   async function exportCSV(){
     if(!S.data||S.data.empty)return toast('먼저 로그를 불러오세요.');
     let tableKey={overview:'daily',nodes:'nodes',groups:'groups',users:'users',queue:'jobs',gpu:'gpu',data:'files'}[S.tab];
-    if(S.tab==='gpu'&&S.charts.gpu==='gpu-latest')tableKey='latestGpu';
+    if(S.tab==='gpu'&&['gpu-latest','gpu-memory','gpu-memory-used','gpu-power','gpu-temp'].includes(S.charts.gpu))tableKey='latestGpu';
+    if(S.tab==='gpu'&&['gpu-user-memory','gpu-processes'].includes(S.charts.gpu))tableKey='latestGpuUsers';
     let rows=tableKey==='daily'?S.data.series:tableKey==='files'?S.meta.files:tableKey==='jobs'?await api('jobExport'):S.data[tableKey];
     if(tableKey==='jobs'&&S.jobQuery){const q=S.jobQuery.toLowerCase();rows=rows.filter(r=>[r.id,r.user,r.partition,r.nodes,r.status,r.state].some(v=>String(v).toLowerCase().includes(q)));}
-    download('HPC_'+tableKey+'_'+codec.iso(Date.now(),540).slice(0,10)+'.csv',new Blob([csv(rows,COLS[tableKey])],{type:'text/csv;charset=utf-8'}));toast('현재 조회 조건의 집계를 저장했습니다.');
+    let cols=COLS[tableKey];
+    if(['users','jobs','latestGpuUsers'].includes(tableKey)){const key=tableKey==='jobs'?'user':'name';rows=rows.map(r=>({...r,displayName:userName(r[key])}));cols=[...cols,['displayName','표시 이름']];}
+    download('HPC_'+tableKey+'_'+codec.iso(Date.now(),540).slice(0,10)+'.csv',new Blob([csv(rows,cols)],{type:'text/csv;charset=utf-8'}));toast('현재 조회 조건의 집계를 저장했습니다.');
   }
   async function exportSession(){
     if(!S.meta)return toast('먼저 로그를 불러오세요.');
@@ -1109,7 +1185,8 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   async function exportPNG(id){
     const svg=document.getElementById(id);if(!svg)return;
     const copy=svg.cloneNode(true);copy.setAttribute('xmlns','http://www.w3.org/2000/svg');copy.setAttribute('font-family','Arial, Malgun Gothic, sans-serif');
-    const vb=svg.viewBox.baseVal,scale=Math.min(2,4096/Math.max(vb.width,vb.height)),w=Math.round(vb.width*scale),h=Math.round(vb.height*scale);copy.setAttribute('width',vb.width);copy.setAttribute('height',vb.height);
+    const vb=svg.viewBox.baseVal,a=S.options.chartStyle,pies=['node-pies','group-pies','usage-pie'].includes(id),width=pies?vb.width:a.chartWidth,height=pies?vb.height:a.chartHeight;
+    const scale=Math.min(a.exportScale,Math.sqrt(32000000/(width*height)),16384/Math.max(width,height)),w=Math.max(1,Math.floor(width*scale)),h=Math.max(1,Math.floor(height*scale));copy.setAttribute('width',width);copy.setAttribute('height',height);copy.removeAttribute('style');
     const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)],{type:'image/svg+xml;charset=utf-8'})),img=new Image();
     try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');ctx.fillStyle=C().panel;ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(blob)download('HPC_'+id+'.png',blob);else throw Error();}
     catch(e){toast('이미지를 저장하지 못했습니다.');}finally{URL.revokeObjectURL(url);}
@@ -1117,9 +1194,59 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
   function settings(){
     $('#setting-offset').value=S.options.offset;$('#setting-interval').value=S.options.interval;$('#setting-started').value=S.options.startedMode;$('#setting-clock').checked=S.options.nodeClock;$('#setting-denominator').value=S.options.denominator;$('#setting-import').value=S.importMode;$('#settings-dialog').showModal();
   }
+  const styleLabels={chartWidth:'캔버스 너비 (px)',chartHeight:'캔버스 높이 (px)',pieColumns:'한 줄의 원 개수',piesPerPage:'페이지당 원 개수',pieSize:'원 지름 (px)',pieGap:'원 사이 여백 (px)',pieHole:'원 내부 구멍 (%)',fontSize:'일반 글씨 크기',titleSize:'제목 글씨 크기',valueSize:'원 수치 글씨 크기',exportScale:'PNG 출력 배율',chartColor:'주 그래프 색상',secondaryColor:'보조 그래프 색상',warningColor:'최대·대기 색상',pieLowColor:'원·지도 낮은 사용률 색',pieHighColor:'원·지도 높은 사용률 색',pieEmptyColor:'원 빈 영역 색'};
+  function appearanceFields(style){
+    $('#appearance-fields').innerHTML=Object.entries(styleLabels).map(([key,label])=>{
+      const rule=appearance.numbers[key];return '<label>'+label+'<input data-style="'+key+'" type="'+(rule?'number':'color')+'" '+(rule?'min="'+rule[1]+'" max="'+rule[2]+'" step="'+(['pieColumns','piesPerPage'].includes(key)?'1':'any')+'"':'')+' value="'+style[key]+'" required></label>';
+    }).join('');
+  }
+  function openAppearance(){
+    $('#user-names').value=Object.entries(S.options.userNames).map(([id,name])=>id+'='+name).join('\n');
+    $('#user-colors').value=Object.entries(S.options.userColors).map(([id,color])=>id+'='+color).join('\n');
+    appearanceFields(S.options.chartStyle);$('#appearance-dialog').showModal();
+  }
+  function mapping(text,colors=false){
+    const values=Object.create(null);
+    text.split(/\r?\n/).forEach((line,i)=>{if(!line.trim())return;const n=line.indexOf('='),id=line.slice(0,n).trim(),value=line.slice(n+1).trim();
+      if(n<1||!id||Object.hasOwn(values,id)||colors&&!appearance.color(value))throw Error((colors?'색상':'이름')+' 목록 '+(i+1)+'행을 ID='+(colors?'#RRGGBB':'이름')+' 형식으로 입력하세요. 중복 ID는 한 번만 입력하세요.');
+      if(value)values[id]=value;
+    });return values;
+  }
+  function applyAppearance(){
+    persist();S.piePages={};if(S.data)S.data.settings={...S.data.settings,...appearance.clean(S.options)};
+    if(S.meta)fillFilters(S.meta);render();
+  }
+  function renameUser(id){
+    $('#rename-id').value=id;$('#rename-name').value=userName(id)===id?'':userName(id);$('#rename-custom-color').checked=Object.hasOwn(S.options.userColors,id);$('#rename-color').value=S.options.userColors[id]||'#087f8c';$('#rename-dialog').showModal();$('#rename-name').focus();
+  }
+  function styleCharts(){
+    const a=S.options.chartStyle;
+    $$('#view svg').forEach(svg=>{
+      const pies=['node-pies','group-pies','usage-pie'].includes(svg.id);
+      if(!pies){svg.setAttribute('width',a.chartWidth);svg.setAttribute('height',a.chartHeight);svg.style.aspectRatio=a.chartWidth+'/'+a.chartHeight;
+        svg.querySelectorAll('text[font-size]').forEach(text=>text.setAttribute('font-size',Number(text.getAttribute('font-size'))*a.fontSize/12));
+      }
+      svg.style.maxWidth=a.chartWidth+'px';svg.style.margin='auto';
+    });
+    $$('#view .panel-head h2').forEach(el=>el.style.fontSize=a.titleSize+'px');
+    $$('#view .legend, #view .panel-note').forEach(el=>el.style.fontSize=a.fontSize+'px');
+  }
+  $('#appearance-button').onclick=openAppearance;
+  $('#reset-appearance').onclick=()=>appearanceFields(appearance.clean().chartStyle);
+  $('#appearance-form').onsubmit=e=>{e.preventDefault();try{
+    const raw={chartStyle:{},userNames:mapping($('#user-names').value),userColors:mapping($('#user-colors').value,true)};
+    $$('#appearance-fields input').forEach(el=>raw.chartStyle[el.dataset.style]=el.type==='number'?Number(el.value):el.value);
+    Object.assign(S.options,appearance.clean(raw));$('#appearance-dialog').close();applyAppearance();
+  }catch(error){toast(error.message);}};
+  $('#rename-form').onsubmit=e=>{e.preventDefault();const id=$('#rename-id').value,name=$('#rename-name').value.trim();
+    if(name)S.options.userNames[id]=name;else delete S.options.userNames[id];
+    if($('#rename-custom-color').checked)S.options.userColors[id]=$('#rename-color').value;else delete S.options.userColors[id];
+    $('#rename-dialog').close();applyAppearance();
+  };
   let debounce;function schedule(){analysisGeneration++;clearTimeout(debounce);debounce=setTimeout(analyze,350);}
   document.addEventListener('click',async e=>{
-    const target=e.target.closest('button, [data-pick]');if(!target)return;
+    const target=e.target.closest('button, [data-pick], [data-rename-user]');if(!target)return;
+    if(target.hasAttribute('data-rename-user')){renameUser(target.dataset.renameUser);return;}
     if(target.dataset.tab){S.tab=target.dataset.tab;render();return;}
     if(target.dataset.chartSelect){S.charts[S.tab]=target.dataset.chartSelect;render();return;}
     if(target.dataset.pie){S.piePages[target.dataset.pie]=(S.piePages[target.dataset.pie]||0)+Number(target.dataset.delta);render();return;}
@@ -1135,7 +1262,7 @@ if(typeof globalThis!=='undefined')globalThis.HPC=HPC;
     if(target.dataset.sort){const id=target.dataset.sort,key=target.dataset.key;if(id==='jobs'){S.jobDir=S.jobSort===key?-S.jobDir:1;S.jobSort=key;S.jobPage=0;await refreshJobs();}else{const old=S.tableSort[id];S.tableSort[id]={key,dir:old?.key===key?-old.dir:1};S.tablePages[id]=0;render();}return;}
     if(target.id==='clear-data'){await api('clear');S.meta=null;S.data=null;$('#dataset-badge').className='badge';$('#dataset-badge').textContent='데이터 없음';$('#from').value='';$('#to').value='';$('#notice').hidden=true;$('#range-caption').textContent='탭으로 구분된 TSV · LOG · TXT 파일을 지원합니다.';for(const k of ['groups','nodes','users']){$('#filter-'+k+' .choices').innerHTML='';$('#filter-'+k+' summary').textContent='전체 '+{groups:'그룹',nodes:'노드',users:'사용자'}[k];S.options[k]=[];}render();toast('현재 데이터가 비워졌습니다.');}
   });
-  document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-pick][role=button]')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
+  document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-pick][role=button], [data-rename-user]')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
   document.addEventListener('change',e=>{const el=e.target;if(el.dataset.filter){const kind=el.dataset.filter;S.options[kind]=$$('#filter-'+kind+' input:checked').map(x=>x.value);fillFilters(S.meta);schedule();}else if(el.id==='bucket')schedule();});
   document.addEventListener('input',e=>{if(e.target.id==='job-search'){S.jobQuery=e.target.value;S.jobPage=0;clearTimeout(debounce);debounce=setTimeout(refreshJobs,170);}});
   document.addEventListener('click',e=>{$$('.export-menu[open], .multi[open]').forEach(d=>{if(!d.contains(e.target))d.open=false;});});

@@ -13,10 +13,35 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from datetime import date, timedelta
 
-from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, date_range, demo_store, iso, parse_time, table_csv
+from hpc_monitor_core import (DEFAULTS, PRESENTATION_KEYS, STYLE_NUMBERS, STYLE_COLORS, VERSION,
+                              LogStore, analyze, appearance_options, options_from, date_range, demo_store, iso, parse_time, table_csv)
 from hpc_monitor_plot import PLOT_NAMES, VIEWS, figure_for
 from hpc_monitor_files import directory_listing
 from hpc_monitor_help import help_text
+
+PREFERENCES = Path.home() / ".hpc-monitor-settings.json"
+STYLE_LABELS = dict(chartWidth="캔버스 너비 (px)", chartHeight="캔버스 높이 (px)", pieColumns="한 줄의 원 개수",
+                    piesPerPage="페이지당 원 개수", pieSize="원 지름 (px)", pieGap="원 사이 여백 (px)",
+                    pieHole="원 내부 구멍 (%)", fontSize="일반 글씨 크기", titleSize="제목 글씨 크기",
+                    valueSize="원 수치 글씨 크기", exportScale="PNG 출력 배율", chartColor="주 그래프 색상",
+                    secondaryColor="보조 그래프 색상", warningColor="최대·대기 색상", pieLowColor="원·지도 낮은 사용률 색",
+                    pieHighColor="원·지도 높은 사용률 색", pieEmptyColor="원 빈 영역 색")
+
+
+def parse_mapping(text, colors=False):
+    result = {}
+    for index, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        uid, separator, value = line.partition("=")
+        uid, value = uid.strip(), value.strip()
+        if not separator or not uid or uid in result:
+            raise ValueError(f"{index}행을 ID=값 형식으로 입력하세요. 중복 ID는 한 번만 입력하세요.")
+        if colors and appearance_options(dict(userColors={uid: value}))["userColors"].get(uid) != value:
+            raise ValueError(f"{index}행의 색상을 #RRGGBB로 입력하세요.")
+        if value:
+            result[uid] = value
+    return result
 
 TABLES = {
     "overview": [("t", "구간 시작", "time"), ("submitted", "제출", "num"), ("started", "시작", "num"), ("running", "실행", "num"), ("jobHours", "작업 시간 h", "num"), ("coreHours", "코어 시간 core·h", "num"), ("allocPct", "코어 할당률", "pct"), ("busyPct", "작업 점유율", "pct"), ("gpuUtil", "GPU 사용률", "pct")],
@@ -28,8 +53,12 @@ TABLES = {
     "data": [("name", "파일명"), ("types", "로그 종류"), ("rows", "새 기록", "num"), ("duplicates", "중복", "num"), ("invalid", "제외한 행", "num")],
 }
 DATA_KEYS = dict(overview="series", nodes="nodes", groups="groups", users="users", queue="jobs", gpu="gpu", gpu_latest="latestGpu")
+DATA_KEYS["gpu_users_latest"] = "latestGpuUsers"
+TABLES["gpu_users_latest"] = [("name", "사용자"), ("t", "마지막 프로세스 관측", "time"),
+                              ("memUsedMb", "관측 메모리 MB", "num"), ("processes", "관측 프로세스", "num")]
 TABLES["gpu_latest"] = [("id", "GPU"), ("node", "노드"), ("purpose", "계산 용도"), ("t", "마지막 관측 시각", "time"),
                         ("util", "관측 사용률", "pct"), ("memPct", "관측 메모리 비율", "pct"),
+                        ("memUsedMb", "관측 사용 메모리 MB", "num"),
                         ("temp", "관측 온도 °C", "num"), ("power", "관측 전력 W", "num"), ("users", "관측 사용자")]
 
 
@@ -345,7 +374,11 @@ class MonitorGUI:
         self.executor, self.events = ThreadPoolExecutor(max_workers=1), queue.Queue()
         self.generation, self.busy = 0, False
         self.view, self.plot = "overview", "overview"
-        self.options, self.replace, self.dark = dict(DEFAULTS), False, False
+        self.options, self.replace, self.dark = options_from(), False, False
+        try:
+            self.options.update(appearance_options(json.loads(PREFERENCES.read_text(encoding="utf-8"))))
+        except (OSError, ValueError, TypeError):
+            pass
         self.filter_selection = {key: [] for key in ("groups", "nodes", "users")}
         self.page, self.sort_key, self.sort_reverse = 0, None, False
         self.rows, self.visible_rows, self.figure, self.canvas, self.toolbar = [], [], None, None, None
@@ -460,6 +493,7 @@ class MonitorGUI:
         self.plot_buttons.pack(side="left", fill="x", expand=True)
         self.dark_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(chart_tools, text="다크 모드", variable=self.dark_var, command=self.toggle_theme).pack(side="right")
+        ttk.Button(chart_tools, text="이름·그래프", command=self.appearance_settings).pack(side="right", padx=6)
         pie_tools = ttk.Frame(self.chart_frame, padding=(7, 3))
         pie_tools.pack(fill="x")
         ttk.Label(pie_tools, text="원그래프 최대 가동률 (%)").pack(side="left")
@@ -481,6 +515,9 @@ class MonitorGUI:
         self.chart_scrollbar = ttk.Scrollbar(self.canvas_frame, orient="vertical", command=self.chart_scroll.yview)
         self.chart_scroll.configure(yscrollcommand=self.chart_scrollbar.set)
         self.chart_scrollbar.pack(side="right", fill="y")
+        chart_xscroll = ttk.Scrollbar(self.canvas_frame, orient="horizontal", command=self.chart_scroll.xview)
+        chart_xscroll.pack(side="bottom", fill="x")
+        self.chart_scroll.configure(xscrollcommand=chart_xscroll.set)
         self.chart_scroll.pack(fill="both", expand=True)
         self.chart_scroll.bind("<Configure>", self.size_chart)
         self.chart_window = None
@@ -522,8 +559,8 @@ class MonitorGUI:
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         self.update_range()
         self.switch_view("overview", draw=False)
-        if self.store.describe()["min"] is not None and (self.store.describe()["min"] != self.store.describe()["max"] or self.store.describe()["counts"]["gpu"]):
-            if self.store.describe()["min"] == self.store.describe()["max"]:
+        if self.store.describe()["min"] is not None and (self.store.describe()["min"] != self.store.describe()["max"] or (self.store.describe()["counts"]["gpu"] or self.store.describe()["counts"]["gpu_user"])):
+            if self.store.describe()["min"] == self.store.describe()["max"] or self.gpu_only():
                 self.switch_view("gpu", draw=False)
             self.apply_filters()
         elif self.store.describe()["min"] is not None:
@@ -645,7 +682,7 @@ class MonitorGUI:
             self.messagebox.showinfo("조회 기간", str(exc), parent=self.root)
             return
         meta = self.store.describe(self.options)
-        snapshot_only = bool(meta["counts"]["gpu"] and meta["min"] == meta["max"] and a is not None and b is not None and a <= meta["min"] <= b)
+        snapshot_only = bool((meta["counts"]["gpu"] or meta["counts"]["gpu_user"]) and meta["min"] == meta["max"] and a is not None and b is not None and a <= meta["min"] <= b)
         if snapshot_only:
             a = b = meta["min"]
         if a is None or b is None or b <= a and not snapshot_only:
@@ -657,8 +694,17 @@ class MonitorGUI:
         options = dict(self.options)
         self.work(lambda: analyze(self.store, options), self.accept)
 
+    def gpu_only(self):
+        counts = self.store.describe()["counts"]
+        return bool(counts["gpu"] or counts["gpu_user"]) and not any(counts[k] for k in ("node_cpu", "user_cpu", "queue_started", "queue_pending"))
+
     def accept(self, data):
         self.data = data
+        if self.view == "gpu" and self.plot == "gpu_latest" and not data.get("empty") and not any(r["util"] is not None for r in data["latestGpu"]):
+            self.plot = next((plot for key, plot in (("memPct", "gpu_memory"), ("memUsedMb", "gpu_memory_used"), ("power", "gpu_power_latest"), ("temp", "gpu_temp_latest"))
+                              if any(r[key] is not None for r in data["latestGpu"])),
+                             "gpu_user_memory" if any(r["memUsedMb"] is not None for r in data["latestGpuUsers"]) else "gpu_processes")
+            self.plot_var.set(self.plot)
         self.options["bucket"] = data["settings"]["bucket"]
         self.bucket_var.set({"hour": "시간별", "day": "일별", "week": "주별", "month": "월별"}[self.options["bucket"]])
         self.status.set("집계 완료 · 표 행을 더블클릭하면 전체 내용을 확인할 수 있습니다.")
@@ -688,7 +734,7 @@ class MonitorGUI:
         def done(store):
             self.store = store
             if store.imported_settings:
-                self.options.update({k: v for k, v in store.imported_settings.items() if k in DEFAULTS})
+                self.options.update({k: v for k, v in store.imported_settings.items() if k in DEFAULTS or k in PRESENTATION_KEYS})
                 self.pie_max.set(str(self.options["pieMax"]))
                 self.range_mode.set("날짜 · 종료일 포함" if self.options["rangeMode"] == "dates" else "시각 · 종료 미포함")
                 self.date_mode.set(DATE_MODES[self.options["dateMode"]])
@@ -697,13 +743,13 @@ class MonitorGUI:
             self.update_range()
             self.filter_selection = {k: [] for k in self.filter_selection}
             self.update_filter_labels()
-            if store.describe()["min"] == store.describe()["max"] and not store.describe()["counts"]["gpu"]:
+            if store.describe()["min"] == store.describe()["max"] and not (store.describe()["counts"]["gpu"] or store.describe()["counts"]["gpu_user"]):
                 self.data = dict(empty=True, meta=store.describe(self.options), settings=dict(self.options),
                                  error="기록 시각이 하나뿐입니다. 다음 시각의 로그를 추가하세요.")
                 self.switch_view("data")
                 self.render()
             else:
-                if store.describe()["min"] == store.describe()["max"]:
+                if store.describe()["min"] == store.describe()["max"] or self.gpu_only():
                     self.switch_view("gpu", draw=False)
                 self.apply_filters()
         self.work(task, done)
@@ -744,7 +790,7 @@ class MonitorGUI:
         box.pack(fill="both", expand=True, padx=12, pady=5)
         values = self.store.describe(self.options)[kind]
         for i, value in enumerate(values):
-            box.insert("end", value)
+            box.insert("end", (self.options["userNames"].get(value, value) + " (" + value + ")") if kind == "users" else value)
             if value in self.filter_selection[kind]:
                 box.selection_set(i)
         controls = ttk.Frame(dialog, padding=12)
@@ -820,6 +866,10 @@ class MonitorGUI:
             for label in self.metric_labels.values():
                 label.configure(text="—")
         table_view = "gpu_latest" if self.view == "gpu" and self.plot == "gpu_latest" else self.view
+        if self.view == "gpu" and self.plot in ("gpu_memory", "gpu_memory_used", "gpu_power_latest", "gpu_temp_latest"):
+            table_view = "gpu_latest"
+        if self.view == "gpu" and self.plot in ("gpu_user_memory", "gpu_processes"):
+            table_view = "gpu_users_latest"
         self.rows = meta["files"] if table_view == "data" else data.get(DATA_KEYS[table_view], []) if data and not data.get("empty") else []
         self.columns = TABLES[table_view]
         self.page = 0
@@ -836,12 +886,13 @@ class MonitorGUI:
     def render_figure(self):
         table = "nodes" if self.plot == "node_pies" else "groups" if self.plot == "group_pies" else None
         count = len((self.data or {}).get(table, [])) if table else 0
-        pages = max(1, math.ceil(count / 24))
+        pages = max(1, math.ceil(count / self.options["chartStyle"]["piesPerPage"]))
         self.pie_page = max(0, min(self.pie_page, pages - 1))
         self.pie_prev.configure(state="normal" if table and self.pie_page > 0 else "disabled")
         self.pie_next.configure(state="normal" if table and self.pie_page + 1 < pages else "disabled")
         self.pie_caption.configure(text=f"{self.pie_page + 1}/{pages} · {count}개" if table else "")
-        key = (id(self.data), self.view, self.plot, self.dark_var.get(), self.options["pieMax"], self.pie_page)
+        key = (id(self.data), self.view, self.plot, self.dark_var.get(), self.options["pieMax"], self.pie_page,
+               json.dumps(appearance_options(self.options), sort_keys=True))
         if self.figure_key == key:
             return
         if self.canvas:
@@ -853,9 +904,10 @@ class MonitorGUI:
         if self.figure:
             self.figure.canvas.toolbar = None
             self.figure.clear()
-        self.figure = figure_for(self.data, self.view, self.plot, self.dark_var.get(), pie_max=self.options["pieMax"], pie_page=self.pie_page)
+        self.figure = figure_for(self.data, self.view, self.plot, self.dark_var.get(), pie_max=self.options["pieMax"], pie_page=self.pie_page, settings=self.options)
         self.chart_scroll.configure(background="#172b39" if self.dark_var.get() else "#ffffff")
         self.canvas = self.Canvas(self.figure, master=self.chart_scroll)
+        self.canvas.mpl_connect("pick_event", self.rename_user)
         self.toolbar = self.Toolbar(self.canvas, self.canvas_frame, pack_toolbar=False)
         self.toolbar.update()
         self.toolbar.pack(side="bottom", fill="x")
@@ -870,16 +922,24 @@ class MonitorGUI:
     def size_chart(self, _event=None):
         if not self.canvas or self.chart_window is None:
             return
-        width, height = max(100, self.chart_scroll.winfo_width()), max(100, self.chart_scroll.winfo_height())
-        if self.plot in ("node_pies", "group_pies") and self.data and not self.data.get("empty"):
+        style = self.options["chartStyle"]
+        width, height = style["chartWidth"], style["chartHeight"]
+        if self.plot in ("node_pies", "group_pies", "usage_pie") and self.data and not self.data.get("empty"):
             table = "nodes" if self.plot == "node_pies" else "groups"
-            count = min(24, max(0, len(self.data.get(table, [])) - self.pie_page * 24))
-            height = max(height, math.ceil(count / 4) * 250)
+            per_page, columns = style["piesPerPage"], style["pieColumns"]
+            count = min(per_page, max(0, len(self.data.get(table, [])) - self.pie_page * per_page))
+            if self.plot == "usage_pie":
+                count = 1
+            width = max(width, min(columns, count) * max(style["pieSize"] + 2 * style["pieGap"], style["titleSize"] * 10))
+            height = max(height, math.ceil(count / columns) * (style["pieSize"] + 2 * style["pieGap"] + style["titleSize"] + 3 * style["fontSize"]) + 2 * style["titleSize"] + 32)
+        scale = min(1, math.sqrt(32_000_000 / (width * height)), 16384 / max(width, height))
+        self.figure.set_dpi(100 * scale)
+        width, height = max(1, int(width * scale)), max(1, int(height * scale))
         self.chart_scroll.itemconfigure(self.chart_window, width=width, height=height)
         self.chart_scroll.configure(scrollregion=(0, 0, width, height))
 
     def scroll_chart(self, event):
-        if self.plot in ("node_pies", "group_pies"):
+        if self.canvas:
             direction = -1 if getattr(event, "num", None) == 4 or getattr(event, "delta", 0) > 0 else 1
             self.chart_scroll.yview_scroll(direction * 3, "units")
             return "break"
@@ -911,7 +971,8 @@ class MonitorGUI:
 
     def update_table(self):
         query = self.search_var.get().lower()
-        rows = [r for r in self.rows if not query or any(query in str(r.get(k, "")).lower() for k, *_ in self.columns)]
+        rows = [r for r in self.rows if not query or any(query in str(r.get(k, "")).lower() for k, *_ in self.columns)
+                or query in self.options["userNames"].get(r.get("user", r.get("name", "") if self.view == "users" else ""), "").lower()]
         if self.sort_key:
             present = [r for r in rows if r.get(self.sort_key) is not None]
             missing = [r for r in rows if r.get(self.sort_key) is None]
@@ -926,7 +987,15 @@ class MonitorGUI:
             self.tree.heading(key, text=label + " ↕", command=lambda k=key: self.sort(k))
             self.tree.column(key, minwidth=80, width=165 if key in ("start", "submit", "end", "t", "name") else 132, stretch=False)
         for index, row in enumerate(rows[self.page * 50:(self.page + 1) * 50]):
-            self.tree.insert("", "end", iid=str(index), values=[fmt(row.get(k), tail[0] if tail else "", self.options["offset"]) for k, _label, *tail in self.columns])
+            values = []
+            for key, _label, *tail in self.columns:
+                value = row.get(key)
+                if key == "user" or key == "name" and (self.view == "users" or self.plot in ("gpu_user_memory", "gpu_processes")):
+                    alias = self.options["userNames"].get(value)
+                    if alias:
+                        value = alias + " (" + value + ")"
+                values.append(fmt(value, tail[0] if tail else "", self.options["offset"]))
+            self.tree.insert("", "end", iid=str(index), values=values)
         self.table_message.configure(text=f"{len(rows):,}개 · {self.page + 1}/{max(1, (len(rows) + 49) // 50)} 페이지")
 
     def sort(self, key):
@@ -955,14 +1024,115 @@ class MonitorGUI:
     def save_csv(self):
         path = self.filedialog.asksaveasfilename(parent=self.root, defaultextension=".csv", initialfile="HPC_" + self.view + ".csv")
         if path:
-            Path(path).write_text(table_csv(self.visible_rows, self.columns, self.options["offset"]), encoding="utf-8", newline="")
+            rows, columns = self.visible_rows, self.columns
+            if self.view in ("users", "queue") or self.plot in ("gpu_user_memory", "gpu_processes"):
+                key = "user" if self.view == "queue" else "name"
+                rows = [dict(row, displayName=self.options["userNames"].get(row.get(key), row.get(key))) for row in rows]
+                columns = [*columns, ("displayName", "표시 이름")]
+            Path(path).write_text(table_csv(rows, columns, self.options["offset"]), encoding="utf-8", newline="")
             self.status.set("현재 필터·검색 결과 CSV 저장 완료")
 
     def save_png(self):
         path = self.filedialog.asksaveasfilename(parent=self.root, defaultextension=".png", initialfile="HPC_" + self.plot + ".png")
         if path and self.figure:
-            self.figure.savefig(path, dpi=160, facecolor=self.figure.get_facecolor())
+            width, height = self.figure.get_size_inches() * 100
+            scale = min(self.options["chartStyle"]["exportScale"], math.sqrt(32_000_000 / (width * height)), 16384 / max(width, height))
+            self.figure.savefig(path, dpi=100 * scale, facecolor=self.figure.get_facecolor())
             self.status.set("그래프 PNG 저장 완료")
+
+    def save_preferences(self):
+        try:
+            temporary = PREFERENCES.with_suffix(".tmp")
+            temporary.write_text(json.dumps(appearance_options(self.options), ensure_ascii=False, allow_nan=False), encoding="utf-8")
+            temporary.replace(PREFERENCES)
+        except OSError as exc:
+            self.messagebox.showerror("설정 저장", "설정을 자동 저장하지 못했습니다. 통합 JSON으로 보관하세요.\n" + str(exc), parent=self.root)
+
+    def apply_appearance(self, config):
+        self.options.update(appearance_options(config))
+        if self.data:
+            self.data["settings"] = dict(self.data.get("settings", {}), **appearance_options(self.options))
+        self.pie_page = 0
+        self.save_preferences()
+        self.render()
+
+    def rename_user(self, event):
+        uid = getattr(event.artist, "hpc_user", None)
+        if uid is None or self.busy or self.toolbar.mode:
+            return
+        from tkinter import simpledialog
+        name = simpledialog.askstring("사용자 표시 이름", f"USER ID: {uid}\n표시 이름 (비우면 ID 표시)",
+                                      initialvalue=self.options["userNames"].get(uid, ""), parent=self.root)
+        if name is not None:
+            names = dict(self.options["userNames"])
+            if name.strip():
+                names[uid] = name.strip()
+            else:
+                names.pop(uid, None)
+            self.apply_appearance(dict(self.options, userNames=names))
+
+    def appearance_settings(self):
+        if self.busy:
+            return
+        from tkinter import colorchooser
+        tk, ttk = self.tk, self.ttk
+        dialog = tk.Toplevel(self.root)
+        dialog.title("이름·그래프 설정")
+        dialog.transient(self.root)
+        outer = ttk.Frame(dialog, padding=16)
+        outer.pack(fill="both", expand=True)
+        tabs = ttk.Notebook(outer)
+        tabs.pack(fill="both", expand=True)
+        dimensions, colors, users = [ttk.Frame(tabs, padding=12) for _ in range(3)]
+        for frame, title in ((dimensions, "크기·배치·글꼴"), (colors, "그래프 색상"), (users, "USER ID–이름")):
+            tabs.add(frame, text=title)
+        variables = {key: tk.StringVar(value=str(value)) for key, value in self.options["chartStyle"].items()}
+        for index, (key, (_default, low, high)) in enumerate(STYLE_NUMBERS.items()):
+            ttk.Label(dimensions, text=f"{STYLE_LABELS[key]} ({low}–{high})").grid(row=index, column=0, sticky="w", padx=(0, 20), pady=5)
+            ttk.Entry(dimensions, textvariable=variables[key], width=12).grid(row=index, column=1, pady=5)
+        for index, key in enumerate(STYLE_COLORS):
+            ttk.Label(colors, text=STYLE_LABELS[key]).grid(row=index, column=0, sticky="w", padx=(0, 15), pady=7)
+            ttk.Entry(colors, textvariable=variables[key], width=12).grid(row=index, column=1, pady=7)
+            def choose(k=key):
+                value = colorchooser.askcolor(variables[k].get(), parent=dialog)[1]
+                if value:
+                    variables[k].set(value)
+            ttk.Button(colors, text="색상 선택", command=choose).grid(row=index, column=2, padx=8)
+        ttk.Label(users, text="한 줄에 ID=이름. 통계와 필터는 원본 ID를 유지합니다.\n그래프에서 사용자 이름을 클릭해 바로 편집할 수도 있습니다.").pack(anchor="w")
+        names = tk.Text(users, width=52, height=8, wrap="none")
+        names.pack(fill="both", expand=True, pady=9)
+        names.insert("1.0", "\n".join(uid + "=" + name for uid, name in self.options["userNames"].items()))
+        ttk.Label(users, text="사용자별 색상: 한 줄에 ID=#RRGGBB. 비우면 자동 색상.").pack(anchor="w")
+        user_colors = tk.Text(users, width=52, height=5, wrap="none")
+        user_colors.pack(fill="both", expand=True, pady=9)
+        user_colors.insert("1.0", "\n".join(uid + "=" + value for uid, value in self.options["userColors"].items()))
+        ttk.Label(outer, text="원 배치 공간이 부족하면 캔버스 자동 확장 · PNG는 현재 페이지 저장\n설정은 이 컴퓨터와 통합 JSON에 보관합니다.").pack(anchor="w", pady=10)
+        controls = ttk.Frame(outer)
+        controls.pack(fill="x")
+        def reset():
+            for key, value in appearance_options()["chartStyle"].items():
+                variables[key].set(str(value))
+        def apply():
+            try:
+                raw = {key: var.get() for key, var in variables.items()}
+                clean = appearance_options(dict(chartStyle=raw))["chartStyle"]
+                for key, (_default, low, high) in STYLE_NUMBERS.items():
+                    value = float(raw[key])
+                    if not low <= value <= high or key in ("pieColumns", "piesPerPage") and value != int(value):
+                        raise ValueError(f"{STYLE_LABELS[key]}: {low}–{high} 범위로 입력하세요.")
+                if any(clean[key] != raw[key] for key in STYLE_COLORS):
+                    raise ValueError("색상을 #RRGGBB로 입력하세요.")
+                config = dict(chartStyle=clean, userNames=parse_mapping(names.get("1.0", "end")),
+                              userColors=parse_mapping(user_colors.get("1.0", "end"), colors=True))
+            except ValueError as exc:
+                self.messagebox.showerror("이름·그래프 설정", str(exc), parent=dialog)
+                return
+            dialog.destroy()
+            self.apply_appearance(config)
+        ttk.Button(controls, text="그래프 기본값", command=reset).pack(side="left")
+        ttk.Button(controls, text="적용·저장", command=apply).pack(side="right")
+        ttk.Button(controls, text="취소", command=dialog.destroy).pack(side="right", padx=8)
+        dialog.grab_set()
 
     def settings(self):
         if self.busy:

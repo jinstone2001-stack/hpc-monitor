@@ -1,4 +1,4 @@
-# HPC Monitor 1.5
+# HPC Monitor 1.6
 
 30분 간격으로 수집한 HPC 로그 6종을 읽어 **노드·partition·사용자별 사용량**을 조회합니다.
 HTML 독립 실행판과 같은 집계 기준을 사용하는 Python X11 GUI 및 Python 웹 GUI를 제공합니다.
@@ -12,6 +12,18 @@ HTML 독립 실행판과 같은 집계 기준을 사용하는 Python X11 GUI 및
 Python 파일 두 개는 **공통 집계 모듈을 실제로 사용**합니다. 웹 버전이 기존 HTML을 단순히 제공하는 서버는 아닙니다.
 TSV 파싱·작업 중복 제거·시간 적분·필터링을 Python에서 수행하고, 브라우저는 그래프와 표를 표시합니다.
 공통 파일과 HTML 자산을 사용하므로 저장소 전체를 다운로드해 같은 폴더에 두세요.
+
+## 1.6 업데이트 · GPU 그래프·이름·그래프 설정
+
+- **GPU 빈 화면 수정**: 모델명 `gpu_name` 열이 없어도 `timestamp`, `node`, `gpu_index`와 측정값 열이 있으면 GPU 로그로 인식합니다. `gpu_util` 없이 메모리·온도·전력만 있는 로그도 해당 관측값을 표시합니다. 메모리 비율이 없으면 알려진 사용량과 전체 용량에서 계산합니다.
+- **GPU 로그 자동 표시**: GPU 로그만 읽으면 GPU 화면으로 이동하고, 사용률이 없으면 입력된 메모리·전력·온도 그래프를 선택합니다. `gpu_user`만 있어도 마지막 프로세스의 사용자별 메모리·프로세스 수를 볼 수 있습니다. 한 시점뿐인 기록으로 점유시간·기간 평균·에너지를 만들지 않습니다. 장치 사용률에는 `gpu` 로그가 필요합니다.
+- **GPU별 시각으로 적분**: 여러 GPU를 순서대로 수집해 시각이 조금 달라도 다른 장치의 시각 때문에 관측 구간이 잘리지 않습니다. 같은 GPU의 다음 기록과 설정한 기록 주기까지만 사용하며 마지막 기록 이후는 연장하지 않습니다.
+- **그래프에서 이름 편집**: 사용자 그래프의 이름을 클릭하면 표시 이름을 바꿀 수 있습니다. HTML·웹에서는 같은 창에서 사용자 색상도 지정합니다. 막대 클릭은 웹의 기존 필터 기능을 유지합니다. X11에서는 사용자 이름 또는 막대를 클릭해 이름을 편집합니다.
+- **ID–이름 목록**: **이름·그래프 → USER ID–이름**에 한 줄씩 `alice=김연구`, `user02=이연구`처럼 입력합니다. 사용자별 색상도 `alice=#2469cc`처럼 지정합니다. 이름이 같아도 ID별 통계를 합치지 않으며 필터와 원본 로그는 ID를 유지합니다. 사용자·작업 CSV에는 ID와 별도 표시 이름을 함께 저장합니다.
+- **원그래프와 이미지 설정**: 캔버스 너비·높이, 한 줄의 원 개수(1–12), 페이지당 원 개수(1–120), 원 지름·여백·구멍 비율, 일반·제목·수치 글씨 크기, 그래프·사용자·낮은/높은 사용률·빈 영역 색상, PNG 배율(1–4)을 변경합니다. 낮은/높은 사용률 색상은 히트맵에도 적용합니다. 원 배치에 필요한 공간이 부족하면 캔버스를 확장하며, 전체 원그래프도 같은 설정을 사용합니다.
+- **설정 보관**: HTML·웹은 브라우저의 로컬 저장소, X11은 `~/.hpc-monitor-settings.json`에 이름·색상·그래프 설정을 저장합니다. 통합 JSON으로 세 버전 사이에서 옮길 수 있습니다. 다른 컴퓨터나 브라우저에서 이어 쓰려면 JSON을 저장하세요. 기본값 버튼은 그래프 설정만 초기화하고 이름 목록은 유지합니다.
+- **출력 기준**: 크기는 논리 픽셀입니다. PNG는 현재 페이지의 배치와 글꼴·색상을 반영하며, 지정 배율을 총 3,200만 픽셀·한 변 16,384픽셀 이내로 조정합니다. X11 상단 **그래프 PNG** 버튼에 출력 배율을 적용합니다. 화면의 원 크기와 글씨가 맞지 않으면 원 지름·구멍 비율·글씨 크기를 함께 조절하세요.
+- **추가 수정**: 이름·색상·배치 변경은 집계 캐시를 재사용합니다. JSON 저장·복원 시 불러오지 않은 로그와 헤더만 있는 빈 로그를 구분해 미관측 값이 임의의 0으로 바뀌지 않도록 했습니다. X11은 설치된 한글 글꼴과 기본 글꼴을 함께 사용합니다.
 
 ## 1.5 업데이트 · 여러 날짜 포함·제외
 
@@ -107,7 +119,7 @@ Matplotlib는 pip로 설치하지만 Tkinter 자체는 일반적으로 OS/Python
 
 `HPC_Usage_Monitor.html`을 PC의 Chrome/Edge에서 열고 **로그 불러오기**를 선택하세요.
 인터넷 연결 없이 동작하며 선택한 로그를 외부 서버로 전송하지 않습니다.
-같은 1.5 지표·그래프를 브라우저 내부의 JavaScript 엔진으로 계산합니다.
+같은 1.6 지표·그래프를 브라우저 내부의 JavaScript 엔진으로 계산합니다.
 HTML 독립 실행판의 파일 선택은 브라우저·운영체제의 기본 창을 사용합니다.
 
 ## 2. X11 GUI 버전
@@ -263,7 +275,11 @@ Node.js는 실제 Python GUI 실행에 필요하지 않습니다.
 Matplotlib가 설치되어 있으면 각 그래프를 화면 없는 환경에서도 PNG로 렌더링해 검증합니다.
 `DISPLAY`가 연결되어 있으면 실제 Tk 창에서 달력·날짜 조회·Ctrl+A·원그래프 최대값·테마 전환도 검사합니다.
 날짜 경계·자정과 윤년·원그래프 채움과 실제 레이블·페이지 이동·캐시 갱신·multipart 본문·압축 전송을 포함합니다.
-1.5 검사는 주말·월 경계를 넘는 날짜 포함/제외, 비연속 실행 구간, 모든 시간 묶음의 분모, CPU·GPU·대기 통계의 Python/HTML 일치, 빈 선택·초기화·JSON 복원을 확인합니다. 전체 68개 검사 중 4개는 실제 X11 화면이 필요합니다.
+1.6은 전체 83개 자동 검사에 GPU 축약 헤더·장치별 시각·프로세스 스냅샷, 이름·색상·레이아웃·글꼴·PNG, 캐시와 JSON 복원을 포함합니다. 실제 Tk 창 검사 6개까지 활성화해 83개가 모두 통과했습니다. Windows Tk에서 확인했으며 실제 HPC 서버의 X11 포워딩은 별도 환경입니다.
+
+1.5의 주말·월 경계를 넘는 날짜 포함/제외, 비연속 실행 구간, 모든 시간 묶음의 분모, CPU·GPU·대기 통계의 Python/HTML 일치, 빈 선택·초기화·JSON 복원 검사도 유지합니다.
+
+`tests/frontend_version16.cjs`는 Playwright와 Chrome/Chromium으로 실제 독립 HTML Worker와 Python HTTP API를 구동합니다. GPU 그래프, 그래프 내 이름·색상 편집, 2열·페이지당 3개 배치, PNG 파일의 실제 크기, CSV와 JSON 복원·설정 재시작을 확인합니다. `NODE_PATH`로 Playwright 패키지 위치, `HPC_PYTHON`으로 Python 실행 파일, `HPC_BROWSER`로 사용할 브라우저 실행 파일을 지정할 수 있습니다. 이들은 개발 검증용이며 프로그램의 추가 의존성이 아닙니다.
 원격 PC의 X 서버와 SSH 설정은 사용 환경에서 별도로 확인해야 합니다.
 
 선택 사항인 DOM 통합 검증은 `tests/frontend_smoke.cjs`에 있습니다. 개발용 Node.js·jsdom이 필요하며,
@@ -280,8 +296,8 @@ Matplotlib가 설치되어 있으면 각 그래프를 화면 없는 환경에서
 - `HPC_Usage_Monitor.html`: 독립 실행 HTML 및 Python 웹 화면 자산.
 - `tests/`: 경계 조건, HTTP 입출력, 그래프 렌더링 및 Python/JS 결과 비교.
 
-현재 배포: `main` 및 [`ver-1.5`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.5) (**1.5.0**).
-이전 버전: [`ver-1.4`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.4), [`ver-1.3`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.3), [`ver-1.1`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.1), [`ver-1.0`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.0).
+현재 배포: `main` 및 [`ver-1.6`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.6) (**1.6.0**).
+이전 버전: [`ver-1.5`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.5), [`ver-1.4`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.4), [`ver-1.3`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.3), [`ver-1.1`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.1), [`ver-1.0`](https://github.com/jinstone2001-stack/hpc-monitor/tree/ver-1.0).
 
 새 버전을 배포할 때는 기존 버전의 마지막 배포 커밋을 먼저 `ver-X.Y` 브랜치로 보존한 뒤 신규 버전을 `main`에 올립니다.
 기존 보존 브랜치는 덮어쓰거나 삭제하지 않습니다. 저장소 작업 지침은 [AGENTS.md](AGENTS.md)에 기록합니다.

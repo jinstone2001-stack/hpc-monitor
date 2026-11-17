@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from hpc_monitor_core import DEFAULTS, VERSION, LogStore, analyze, demo_store, natural_key, options_from
+from hpc_monitor_core import DEFAULTS, PRESENTATION_KEYS, VERSION, LogStore, analyze, demo_store, natural_key, options_from
 from hpc_monitor_files import directory_listing
 
 ASSET = Path(__file__).with_name("HPC_Usage_Monitor.html")
@@ -136,7 +136,7 @@ def web_page(token):
     initial = """
   render();
   api('meta',{settings:S.options}).then(meta=>{
-    if(meta.min!==null){S.meta=meta;if(meta.min===meta.max&&meta.counts.gpu)S.tab='gpu';setRange(meta);fillFilters(meta,true);analyze();}
+    if(meta.min!==null){S.meta=meta;if(gpuOnly(meta))S.tab='gpu';setRange(meta);fillFilters(meta,true);analyze();}
   }).catch(e=>toast(e.message));
 })();
 """
@@ -174,13 +174,13 @@ class MonitorSession:
                 return self.store.describe(message.get("settings"))
             if op == "analyze":
                 opt = options_from(message.get("options"))
-                accounting = {k: v for k, v in opt.items() if k not in ("pieMax", "rangeMode")}
+                accounting = {k: v for k, v in opt.items() if k not in PRESENTATION_KEYS}
                 key = (id(self.store), self.store.revision, json.dumps(accounting, sort_keys=True))
                 if self.last_key != key or self.last is None:
                     self.last = analyze(self.store, opt)
                     self.last_key = key
                 # Presentation changes retain the actual, cached statistics.
-                self.last = dict(self.last, settings=dict(self.last["settings"], pieMax=opt["pieMax"], rangeMode=opt["rangeMode"]))
+                self.last = dict(self.last, settings=dict(self.last["settings"], **{k: opt[k] for k in PRESENTATION_KEYS}))
                 if self.last["empty"]:
                     return self.last
                 return dict(self.last, jobs=self.last["jobs"][:50], jobsTotal=len(self.last["jobs"]))

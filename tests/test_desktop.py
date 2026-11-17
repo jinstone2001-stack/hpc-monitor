@@ -12,6 +12,8 @@ from HPC_Monitor_X11 import CalendarPicker, DATE_MODES, LogFilePicker, MonitorGU
 from test_version14 import calendar_store
 from test_version15 import weekend_store
 from datetime import date
+from unittest.mock import patch
+import json
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "A desktop or X11 display is needed for Tk widget checks")
@@ -152,6 +154,57 @@ class DesktopTests(unittest.TestCase):
             self.wait(lambda: not app.busy)
             self.assertEqual(app.options["selectedDates"], [])
             self.assertEqual(app.data["summary"]["coreHours"], 576)
+        finally:
+            app.closed = True
+            app.executor.shutdown(wait=True, cancel_futures=True)
+
+
+    def test_names_styles_and_png_survive_native_widgets_and_preferences(self):
+        with tempfile.TemporaryDirectory() as temporary, patch("HPC_Monitor_X11.PREFERENCES", Path(temporary) / "settings.json"):
+            app = MonitorGUI(self.root, c.demo_store(), SimpleNamespace(font_size=10))
+            try:
+                self.wait(lambda: not app.busy)
+                data = app.data
+                app.apply_appearance(dict(userNames=dict(kim="김연구"), userColors=dict(kim="#123456"),
+                                          chartStyle=dict(chartWidth=900, chartHeight=500, pieColumns=2, piesPerPage=3)))
+                self.root.update()
+                self.assertIs(app.data, data, "Appearance must not repeat accounting")
+                app.switch_view("users")
+                self.root.update()
+                self.assertIn("김연구", [text.get_text() for text in app.figure.axes[0].get_yticklabels()])
+                artist = next(text for text in app.figure.axes[0].get_yticklabels() if getattr(text, "hpc_user", None) == "kim")
+                with patch("tkinter.simpledialog.askstring", return_value="새 이름"):
+                    app.rename_user(SimpleNamespace(artist=artist))
+                saved = json.loads((Path(temporary) / "settings.json").read_text(encoding="utf-8"))
+                self.assertEqual(saved["userNames"]["kim"], "새 이름")
+                app.switch_view("nodes")
+                app.select_plot("node_pies")
+                self.root.update()
+                self.assertEqual(len(app.figure.axes), 3)
+                app.move_pies(1)
+                self.root.update()
+                self.assertEqual(len(app.figure.axes), 3)
+                target = Path(temporary) / "native.png"
+                with patch.object(app.filedialog, "asksaveasfilename", return_value=str(target)):
+                    app.save_png()
+                self.assertEqual(target.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+                app.appearance_settings()
+                self.root.update()
+                self.assertTrue(any(child.winfo_class() == "Toplevel" for child in self.root.winfo_children()))
+            finally:
+                app.closed = True
+                app.executor.shutdown(wait=True, cancel_futures=True)
+
+    def test_process_only_gpu_opens_a_native_snapshot_graph(self):
+        from test_monitor import load, stamp
+        store = c.LogStore()
+        load(store, "gpu_user", [dict(timestamp=stamp("00:00"), node="g1", gpu_index="0", user="alice", pid="1", mem_used_mb=512)])
+        app = MonitorGUI(self.root, store, SimpleNamespace(font_size=10))
+        try:
+            self.wait(lambda: not app.busy)
+            self.assertEqual((app.view, app.plot), ("gpu", "gpu_user_memory"))
+            self.assertEqual(app.figure.axes[0].patches[0].get_width(), 512)
+            self.assertIsNone(app.data["users"][0]["gpuHours"])
         finally:
             app.closed = True
             app.executor.shutdown(wait=True, cancel_futures=True)

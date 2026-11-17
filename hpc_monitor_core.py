@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 TYPES = ("user_cpu", "queue_started", "queue_pending", "node_cpu", "gpu_user", "gpu")
 SCHEMA = {
     "user_cpu": "timestamp user node partition cpus_alloc mem_alloc_mb n_jobs job_ids".split(),
@@ -49,6 +49,36 @@ DISTINCTIVE = {
 DEFAULTS = dict(offset=540, interval=30, startedMode="snapshot",
                 nodeClock=True, denominator="observed", bucket="day", pieMax=100, rangeMode="dates",
                 dateMode="all", selectedDates=[])
+STYLE_NUMBERS = {
+    "chartWidth": (1200, 400, 4000), "chartHeight": (600, 240, 4000),
+    "pieColumns": (4, 1, 12), "piesPerPage": (24, 1, 120),
+    "pieSize": (140, 60, 400), "pieGap": (40, 8, 200), "pieHole": (70, 0, 90),
+    "fontSize": (12, 6, 32), "titleSize": (16, 8, 48), "valueSize": (23, 8, 60),
+    "exportScale": (2, 1, 4),
+}
+STYLE_COLORS = dict(chartColor="#087f8c", secondaryColor="#5586bb", warningColor="#d8a154",
+                    pieLowColor="#2469cc", pieHighColor="#cc2424", pieEmptyColor="#e3e9ee")
+PRESENTATION_KEYS = ("pieMax", "rangeMode", "chartStyle", "userNames", "userColors")
+
+
+def appearance_options(raw=None):
+    raw = raw if isinstance(raw, dict) else {}
+    source = raw.get("chartStyle") if isinstance(raw.get("chartStyle"), dict) else {}
+    style = {}
+    for key, (default, low, high) in STYLE_NUMBERS.items():
+        value = number(source.get(key))
+        style[key] = value if value is not None and low <= value <= high else default
+        if key in ("pieColumns", "piesPerPage"):
+            style[key] = int(style[key])
+    color = lambda value: isinstance(value, str) and bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
+    style.update({key: source[key] if color(source.get(key)) else default for key, default in STYLE_COLORS.items()})
+    mappings = {}
+    for key in ("userNames", "userColors"):
+        values = raw.get(key) if isinstance(raw.get(key), dict) else {}
+        mappings[key] = {uid: name.strip() for uid, name in values.items()
+                         if isinstance(uid, str) and uid and isinstance(name, str) and name.strip()
+                         and (key != "userColors" or color(name.strip()))}
+    return dict(chartStyle=style, **mappings)
 DAY, HOUR = 86_400_000, 3_600_000
 MISSING = re.compile(r"^(?:N/A|NA|nan|null|none|-)$", re.I)
 TIME_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?", re.I)
@@ -159,6 +189,9 @@ def _list_items(text):
 
 def detect_header(header):
     fields = set(header)
+    if {"timestamp", "node", "gpu_index"} <= fields and not {"user", "pid"}.intersection(fields):
+        if fields.intersection(("gpu_util", "mem_pct", "mem_used_mb", "temp_c", "power_w")):
+            return "gpu"
     return next((kind for kind in TYPES if "timestamp" in fields and DISTINCTIVE[kind] <= fields), None)
 
 
@@ -167,7 +200,8 @@ def ratio(a, b):
 
 
 def options_from(value=None):
-    raw, opt = value or {}, dict(DEFAULTS)
+    raw, opt = value if isinstance(value, dict) else {}, dict(DEFAULTS)
+    opt.update(appearance_options(raw))
     if number(raw.get("offset")) in (0, 540):
         opt["offset"] = int(raw["offset"])
     if number(raw.get("interval")) is not None and 1 <= float(raw["interval"]) <= 1440:
@@ -230,6 +264,8 @@ class LogStore:
         row = {key: number(raw.get(key)) if key in NUMBERS
                else str(raw.get(key) if raw.get(key) is not None else "").strip()
                for key in SCHEMA[kind]}
+        if kind == "gpu" and row["mem_pct"] is None and row["mem_total_mb"] and row["mem_used_mb"] is not None:
+            row["mem_pct"] = ratio(row["mem_used_mb"], row["mem_total_mb"])
         if parse_time(row["timestamp"]) is None:
             self.issue(name, line, "timestamp 형식 오류")
             summary["invalid"] += 1
@@ -334,11 +370,15 @@ class LogStore:
         if isinstance(obj.get("settings"), dict):
             self.imported_settings = options_from(obj["settings"])
         summary = dict(name=name, rows=0, duplicates=0, invalid=0, types=set())
+        declared = obj.get("availableTypes")
+        if isinstance(declared, list):
+            summary["types"].update(k for k in TYPES if k in declared)
         for kind in TYPES:
             rows = obj["tables"].get(kind)
             if not isinstance(rows, list):
                 continue
-            summary["types"].add(kind)
+            if rows:
+                summary["types"].add(kind)
             for index, raw in enumerate(rows, 1):
                 if isinstance(raw, dict):
                     self.insert(kind, raw, name, index, summary)
@@ -351,6 +391,7 @@ class LogStore:
 
     def session(self, settings=None):
         return dict(format="hpc-monitor-session", version=1, settings=settings or DEFAULTS,
+                    availableTypes=[k for k in TYPES if self.tables[k] or any(k in f["types"] for f in self.files)],
                     demo=self.demo, tables={k: list(v.values()) for k, v in self.tables.items()})
 
     def normalized(self, offset=540):
@@ -463,7 +504,7 @@ def splits(a, b, mode, offset):
         a = end
 
 
-def intervals(rows, entity, clock, step, end=None):
+def intervals(rows, entity, clock, step, end=None, per_entity=False):
     if not clock or end is None:
         return
     next_clock = {t: clock[i + 1] if i + 1 < len(clock) else t for i, t in enumerate(clock)}
@@ -471,9 +512,11 @@ def intervals(rows, entity, clock, step, end=None):
     for row in rows:
         by_entity[entity(row)].append(row)
     for values in by_entity.values():
+        entity_end = values[-1]["t"] if per_entity else end
         for index, row in enumerate(values):
-            following = values[index + 1]["t"] if index + 1 < len(values) else end
-            stop = min(following, row["t"] + step, end, next_clock.get(row["t"], end))
+            following = values[index + 1]["t"] if index + 1 < len(values) else entity_end
+            stop = min(following, row["t"] + step, entity_end,
+                       entity_end if per_entity else next_clock.get(row["t"], end))
             if stop > row["t"]:
                 yield row["t"], stop, row
 
@@ -496,7 +539,7 @@ def analyze(store: LogStore, options=None):
     start, stop = opt.get("from"), opt.get("to")
     start = n["min"] if start is None else start
     stop = n["max"] if stop is None else stop
-    snapshot_only = bool(available["gpu"] and start == stop == n["min"] == n["max"])
+    snapshot_only = bool((available["gpu"] or available["gpu_user"]) and start == stop == n["min"] == n["max"])
     if stop <= start and not snapshot_only:
         return dict(empty, error="집계에는 서로 다른 시각의 기록이 두 개 이상 필요합니다.")
     if (stop - start) / DAY > 3653:
@@ -810,11 +853,24 @@ def analyze(store: LogStore, options=None):
 
     gpu_user_clock = clock_for("gpu_user", "gpu")
     gpu_user_ranges, allowed_gpu, gpu_users = defaultdict(list), set(), defaultdict(set)
+    process_snapshots = {}
     for row in rows_in_window(tables["gpu_user"], start, stop):
         if in_selection(row["t"], True) and row["node"] in selected_nodes and user_match(row):
+            stat(user_stats, row["user"])["nodes"].add(row["node"])
             gid = row["node"] + "/GPU" + row["gpu_index"]
+            if gid not in process_snapshots or row["t"] > process_snapshots[gid][0]["t"]:
+                process_snapshots[gid] = []
+            process_snapshots[gid].append(row)
             allowed_gpu.add(gid)
             gpu_users[gid].add(row["user"])
+    latest_gpu_users = {}
+    for rows in process_snapshots.values():
+        for row in rows:
+            item = latest_gpu_users.setdefault(row["user"], dict(name=row["user"], memUsedMb=None, processes=0, t=row["t"]))
+            item["processes"] += 1
+            item["t"] = max(item["t"], row["t"])
+            if row["mem_used_mb"] is not None:
+                item["memUsedMb"] = (item["memUsedMb"] or 0) + row["mem_used_mb"]
     for a, b, row in accounted(intervals(rows_in_window(tables["gpu_user"], start - step, stop), lambda r: (r["node"], r["gpu_index"], r["pid"], r["user"], r["job_id"]),
                                gpu_user_clock, step, gpu_user_clock[-1] if gpu_user_clock else None)):
         if row["node"] not in selected_nodes or not user_match(row):
@@ -844,10 +900,11 @@ def analyze(store: LogStore, options=None):
             latest_gpu[gid] = dict(id=gid, node=row["node"], name=row["gpu_name"], t=row["t"],
                                    purpose=purpose_for(inventory[row["node"]]["groups"], row["node"]),
                                    util=row["gpu_util"], memPct=row["mem_pct"], temp=row["temp_c"], power=row["power_w"],
+                                   memUsedMb=row["mem_used_mb"],
                                    users=sorted(gpu_users[gid]))
 
-    for a, b, row in accounted(intervals(rows_in_window(tables["gpu"], start - step, stop), lambda r: (r["node"], r["gpu_index"]),
-                               times["gpu"], step, times["gpu"][-1] if times["gpu"] else None)):
+    for a, b, row in accounted(intervals(tables["gpu"], lambda r: (r["node"], r["gpu_index"]),
+                               times["gpu"], step, times["gpu"][-1] if times["gpu"] else None, per_entity=True)):
         gid = row["node"] + "/GPU" + row["gpu_index"]
         if row["node"] not in selected_nodes or (scoped and gid not in allowed_gpu):
             continue
@@ -912,8 +969,8 @@ def analyze(store: LogStore, options=None):
                               jobHours=s["jobSec"] / 3600 if has_jobs else None,
                               activityPct=ratio(seconds(activity[name]), duration) if has_jobs else None,
                               contribution=ratio(s["coreSec"], full_core if calendar else physical_capacity) if available["user_cpu"] else None,
-                              gpuHours=s["gpuDeviceSec"] / 3600 if available["gpu_user"] else None,
-                              gpuMemHours=s["gpuMemSec"] / 3600 if available["gpu_user"] else None,
+                              gpuHours=s["gpuDeviceSec"] / 3600 if available["gpu_user"] and not snapshot_only else None,
+                              gpuMemHours=s["gpuMemSec"] / 3600 if available["gpu_user"] and not snapshot_only else None,
                               nodes=", ".join(sorted(s["nodes"], key=natural_key))))
     group_rows = []
     for name in group_waits:
@@ -996,6 +1053,7 @@ def analyze(store: LogStore, options=None):
                 users=sorted(user_rows, key=lambda r: -(r["coreHours"] or r["gpuHours"] or 0)),
                 gpu=sorted(gpu_rows, key=lambda r: natural_key(r["id"])),
                 latestGpu=sorted(latest_gpu.values(), key=lambda r: natural_key(r["id"])),
+                latestGpuUsers=sorted(latest_gpu_users.values(), key=lambda r: r["name"]),
                 jobs=sorted(visible, key=lambda r: -(r["start"] if r["start"] is not None else r["submit"] if r["submit"] is not None else r["last"] or 0)),
                 heat=[dict(node=h["node"], t=h["t"], value=ratio(h["core"], h["cap"]),
                            coverage=ratio(h["obs"], bucket_duration(h["t"]))) for h in heat.values()],

@@ -86,7 +86,7 @@ def html_results(store, options):
     script = """
 const fs=require('fs'),vm=require('vm'),input=JSON.parse(fs.readFileSync(0,'utf8'));
 const html=fs.readFileSync('HPC_Usage_Monitor.html','utf8');
-vm.runInThisContext(html.split('<script id="hpc-engine" type="text/plain">')[1].split('</script>')[0]);
+for(const [id,type]of [['hpc-presentation',''],['hpc-engine',' type="text/plain"']])vm.runInThisContext(html.split('<script id="'+id+'"'+type+'>')[1].split('</script>')[0]);
 const store=HPC.createStore();HPC.loadSession(store,input.session,'test.json');
 console.log(JSON.stringify(input.options.map(opt=>HPC.analyze(store,opt))));
 """
@@ -398,7 +398,7 @@ console.log(JSON.stringify(results));
         script = """
 const fs=require('fs'),vm=require('vm'),input=JSON.parse(fs.readFileSync(0,'utf8'));
 const html=fs.readFileSync('HPC_Usage_Monitor.html','utf8');
-vm.runInThisContext(html.split('<script id="hpc-engine" type="text/plain">')[1].split('</script>')[0]);
+for(const [id,type]of [['hpc-presentation',''],['hpc-engine',' type="text/plain"']])vm.runInThisContext(html.split('<script id="'+id+'"'+type+'>')[1].split('</script>')[0]);
 const store=HPC.createStore();HPC.loadSession(store,input.session,'test.json');
 console.log(JSON.stringify(input.options.map(opt=>HPC.analyze(store,opt))));
 """
